@@ -68,10 +68,10 @@ void setup()
   obtener_datos(datos, offset);
   //send_uart("?!");
   print_datos();
-  Serial.print("\nMOVER\n");
+  //Serial.print("\nMOVER\n");
   //mover(50,70,0);
-  Serial.print("GIRAR");
-  girar(180,1);
+  //Serial.print("GIRAR");
+  //girar(180,1);
   //for (int i = 0; i < 256; i++)
   //{
   //  Serial1.write(i);
@@ -219,7 +219,7 @@ void send_uart(char* data_send)
   formlist[0] = mod_header;
   formlist[1] = size_h;
   formlist[2] = size_l;
-  formlist[3] = 0;
+  formlist[3] = respuestaid;
   formlist[4] = MICRO_ADDR;
 
   for ( int i = 5 ; i < 5 + data_len ; i++)
@@ -322,10 +322,10 @@ void ISR_INTE0()
  if (flag_mover)
  {
    distancia_temp = distancia_temp + DIST_PULS;
-   Serial.println(distancia_temp);
+   //Serial.println(distancia_temp);
  }
  //Serial.println(distancia_temp);
- Serial.print("INTE0");
+ //Serial.print("INTE0");
 }
 
 void ISR_INTE1()
@@ -333,10 +333,10 @@ void ISR_INTE1()
  //Serial.println(distancia_temp);
    if (flag_mover)
   {
-    Serial.println(distancia_temp);
+    //Serial.println(distancia_temp);
     distancia_temp = distancia_temp + DIST_PULS;
   }
- Serial.print("INTE1");
+ //Serial.print("INTE1");
 }
 
 
