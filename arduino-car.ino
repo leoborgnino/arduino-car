@@ -67,8 +67,11 @@ void setup()
   calibrar_MPU6050(offset);
   obtener_datos(datos, offset);
   //send_uart("?!");
+  print_datos();
+  Serial.print("\nMOVER\n");
   //mover(50,70,0);
-
+  Serial.print("GIRAR");
+  girar(180,1);
   //for (int i = 0; i < 256; i++)
   //{
   //  Serial1.write(i);
@@ -140,8 +143,8 @@ void loop()
 
 void mover(int distancia, int vlc, int sentido)
 {
-  EIMSK |= (1 << INT0);
-  EIMSK |= (1 << INT1);
+  //EIMSK |= (1 << INT0);
+  //EIMSK |= (1 << INT1);
   if (!(sentido))
   {
     analogWrite(PWM1, 127 + vlc);
@@ -154,6 +157,7 @@ void mover(int distancia, int vlc, int sentido)
   }
   contador_movimiento = 0;
   distancia_max = distancia;
+  distancia_temp = 0;
   flag_mover = true;
 
 }
@@ -280,8 +284,8 @@ void print_datos()
 
 void ISR_Timer()
 {
-  if (flag_mover)
-    contador_movimiento++;
+  //if (flag_mover)
+    //contador_movimiento++;
   if ( ( fabs(valor_giro_temp) > grados_max) && (flag_rotacion == true) )
     {
       analogWrite(PWM1, 127);
@@ -291,15 +295,15 @@ void ISR_Timer()
       valor_giro_temp = 0;
     }
   
-  if(contador_movimiento > distancia_max/2)
-    {
-      contador_movimiento = 0;
-      flag_mover = false;
-      analogWrite(PWM1, 127);
-      analogWrite(PWM2, 127);
-      send_uart("ok!");
-      
-    }
+  //if(contador_movimiento > distancia_max/2)
+  //  {
+  //    contador_movimiento = 0;
+  //    flag_mover = false;
+  //    analogWrite(PWM1, 127);
+  //    analogWrite(PWM2, 127);
+  //    send_uart("ok!");
+  //    
+  //  }
   
   if ( ( distancia_temp > distancia_max) && (flag_mover == true) )
     {
@@ -320,13 +324,13 @@ void ISR_INTE0()
    distancia_temp = distancia_temp + DIST_PULS;
    Serial.println(distancia_temp);
  }
- Serial.println(distancia_temp);
+ //Serial.println(distancia_temp);
  Serial.print("INTE0");
 }
 
 void ISR_INTE1()
 {
- Serial.println(distancia_temp);
+ //Serial.println(distancia_temp);
    if (flag_mover)
   {
     Serial.println(distancia_temp);
