@@ -21,7 +21,12 @@ void obtener_datos(float *datos, float *offset)
   
   for( int i = 0; i < 7; i++ )
     {
-      datos[i] = Wire.read()<<8|Wire.read();
+      if (i == 3)
+	datos[6] = Wire.read()<<8|Wire.read();
+      else if (i > 3)
+	datos[i-1] = Wire.read()<<8|Wire.read();
+      else
+	datos[i] = Wire.read()<<8|Wire.read();
     }
   
   for( int i = 0; i < 3; i++)
