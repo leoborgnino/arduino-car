@@ -100,7 +100,7 @@ void loop()
   if ((data_rec[0] == 'g') && (flag_accion))
   {
     obtener_datos(datos, offset);
-    for(i=0;i<6;i++)
+    for(int i=0;i<6;i++)
       dtostrf(datos[i],5,2,buff[i]);
     sprintf(mystring, "%s %s %s %s %s %s !", buff[0], buff[1], buff[2], buff[3], buff[4], buff[5]);
     send_uart(mystring);
@@ -123,7 +123,7 @@ void loop()
 
   if ((flag_timer) && (flag_rotacion))
   {    
-    valor_giro_temp = valor_giro_temp + obtener_z_gyro(offset[2]) * (TIME_SAMPLE/1000);
+    valor_giro_temp = valor_giro_temp + obtener_z_gyro(datos, offset) * (TIME_SAMPLE/1000);
     Serial.println(valor_giro_temp);
     flag_timer = false;
   }
