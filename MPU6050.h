@@ -1,10 +1,11 @@
 #include <Wire.h>
+const int MPU6050_ADRESS = 0x68;
 
 void init_MPU6050()
 {
   
   Wire.begin();
-  Wire.beginTransmission(0x68);
+  Wire.beginTransmission(MPU6050_ADRESS);
   Wire.write(0x6B); // PWR_MGMT_1 registro a cero
   Wire.write(0); // se saca el MPU del sleep
   Wire.endTransmission(true);
@@ -13,10 +14,10 @@ void init_MPU6050()
 
 void obtener_datos(float *datos, float *offset)
 {
-  Wire.beginTransmission(0x68);
+  Wire.beginTransmission(MPU6050_ADRESS);
   Wire.write(0x3B); // starting with register 0x3B (ACCEL_XOUT_H)
   Wire.endTransmission(false);
-  Wire.requestFrom(0x68,14,true); // request a total of 14 registers
+  Wire.requestFrom(MPU6050_ADRESS,14,true); // request a total of 14 registers
   
   for( int i = 0; i < 7; i++ )
     {
@@ -34,6 +35,23 @@ void obtener_datos(float *datos, float *offset)
   Wire.endTransmission(true);
 }
 
+float obtener_z_gyro(float *offset)
+{
+  float z_gyro = 0;
+  flag_transmision = true;
+  Wire.beginTransmission(MPU6050_ADRESS);
+  Wire.write(0x47);                // starting with register 0x3B (ACCEL_XOUT_H)
+  Wire.endTransmission(false);
+  Wire.requestFrom(MPU6050_ADRESS, 2, true); // request a total of 14 registers
+  datos[6] = Wire.read() << 8 | Wire.read();
+  flag_transmision = false;
+  if (datos[6] >= 0x8000)
+    datos[6] = -((65535 - datos[6]) + 1);
+  datos[6] = (datos[6] / 131) - offset[2];
+  z_gyro = datos[6];
+  return z_gyro;
+}
+
 void calibrar_MPU6050(float *offset)
 {
   float offsetX = 0,offsetY = 0, offsetZ = 0;
@@ -41,10 +59,10 @@ void calibrar_MPU6050(float *offset)
   float temp;
   for (int i = 0; i < 100; i++)
     {
-      Wire.beginTransmission(0x68);
+      Wire.beginTransmission(MPU6050_ADRESS);
       Wire.write(0x3B); // starting with register 0x3B (ACCEL_XOUT_H)
       Wire.endTransmission(false);
-      Wire.requestFrom(0x68,14,true); // request a total of 14 registers
+      Wire.requestFrom(MPU6050_ADRESS,14,true); // request a total of 14 registers
       offsetaX = Wire.read()<<8|Wire.read(); // 0x3B (ACCEL_XOUT_H) & 0x3C (ACCEL_XOUT_L)
       offsetaY = Wire.read()<<8|Wire.read(); // 0x45 (GYRO_YOUT_H) & 0x46 (GYRO_YOUT_L)
       offsetaZ = Wire.read()<<8|Wire.read(); // 0x47 (GYRO_ZOUT_H) & 0x48 (GYRO_ZOUT_L)
@@ -80,7 +98,3 @@ void calibrar_MPU6050(float *offset)
   offset[4] = offset[4] / 100;
   offset[5] = offset[5] / 100;
 }
-
-
-
-

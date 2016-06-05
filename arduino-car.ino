@@ -2,21 +2,24 @@
 #include <Wire.h>
 #include <MPU6050.h>
 
-//codigo prueba
-const int   MPU        = 0x68;
-const int   PWM2       =    9;
-const int   PWM1       =   10;
-const int   INTE0      =    2;
-const int   INTE1      =    3;
-const float T_muest    = 0.05;
-const int   PPV        =   24;
-const float LONG_ARC   =  2 * 3.14 * 10; //longitud de arco de la rueda en cm
-const float DIST_PULS  = LONG_ARC / PPV;
+/********************************
+ *        Constantes            *
+/********************************/
+const int   PWM2        =    9;
+const int   PWM1        =   10;
+const int   INTE0       =    2;
+const int   INTE1       =    3;
+const int   PPV         =   24;
+const int   TIME_SAMPLE =   50;
+const int   BAUD_RATE   = 115200;
+const float LONG_ARC    =  2 * 3.14 * 10; //longitud de arco de la rueda en cm
+const float DIST_PULS   = LONG_ARC / PPV;
 
 boolean flag_rotacion    = false;
 boolean flag_timer       = false;
 boolean flag_mover       = false;
 boolean flag_transmision = false;
+boolean flag_accion      = false;
 
 char formlist[100];
 char data_rec[100];
@@ -28,7 +31,6 @@ int  flag_uart          =  0;
 int  contador_backup    =  0;
 int  data_len_rx        =  0;
 
-int   flag_accion       = 0;
 float valor_giro_temp   = 0;
 float distancia_temp    = 0;
 float aceleracion_old   = 0;
@@ -45,6 +47,10 @@ int encoder1            = 0; //contadores encoders ruedas
 int encoder2            = 0;
 int grados_max          = 0;
 
+/********************************
+ * Declaración de variables     *
+/********************************/
+
 void send_uart(char*);
 void receive_uart();
 void print_datos();
@@ -55,96 +61,83 @@ void reset_transmision();
 void setup()
 {
   TCCR2B = TCCR2B & 0b11111000 | 0x01;   // Establece frecuencia pwm pines 9,10 a 31K
-  Timer1.initialize(50000);              // Dispara cada 50 ms
+  Timer1.initialize(TIME_SAMPLE*1000);   // Dispara cada TIME_SAMPLE ms
   Timer1.attachInterrupt(ISR_Timer);     // Activa la interrupcion y la asocia a ISR_Blink
-  Serial.begin(115200);                  // Inicio la transmision serie
-  Serial1.begin(115200, SERIAL_8N1);     
+  Serial.begin(BAUD_RATE);               // Inicio la transmision serie
+  Serial1.begin(BAUD_RATE, SERIAL_8N1);     
   analogWrite(PWM1, 127);                // PWM1 50% duty
   analogWrite(PWM2, 127);                // PWM2 50% duty
-  attachInterrupt(0, ISR_INTE0, RISING); // Interrupcion externa en pin 2 por flanco de subida
-  attachInterrupt(1, ISR_INTE1, RISING); // Interrupción externa en pin 3 por flanco de subida
+  attachInterrupt(0, ISR_INTE0, CHANGE); // Interrupcion externa en pin 2 por cambio de nivel
+  attachInterrupt(1, ISR_INTE1, CHANGE); // Interrupción externa en pin 3 por cambio de nivel
   init_MPU6050();
   calibrar_MPU6050(offset);
   obtener_datos(datos, offset);
-  //send_uart("?!");
-  print_datos();
-  //Serial.print("\nMOVER\n");
-  //mover(50,70,0);
-  //Serial.print("GIRAR");
-  //girar(180,1);
-  //for (int i = 0; i < 256; i++)
-  //{
-  //  Serial1.write(i);
-  //}
+
+
 }
+
+/*************************************************************************************************************
+ * Bucle infinito donde se llama a las diferentes funciones según el caracter que recibe el microcontrolador *
+/*************************************************************************************************************/
 
 void loop()
 {
+
   if ((data_rec[0] == 'd') && (flag_accion))
   {
     mover(data_rec[1], data_rec[2], data_rec[3]);
-    flag_accion = 0;
+    flag_accion = false;
   }
+
+
   if ((data_rec[0] == 'f') && (flag_accion))
   {
     girar(data_rec[1], data_rec[2]);
-    flag_accion = 0;
+    flag_accion = false;
   }
+
+
   if ((data_rec[0] == 'g') && (flag_accion))
   {
     obtener_datos(datos, offset);
-    dtostrf(datos[0],5,2,buff[0]);
-    dtostrf(datos[1],5,2,buff[1]);
-    dtostrf(datos[2],5,2,buff[2]);
-    dtostrf(datos[3],5,2,buff[3]);
-    dtostrf(datos[4],5,2,buff[4]);
-    dtostrf(datos[5],5,2,buff[5]);
+    for(i=0;i<6;i++)
+      dtostrf(datos[i],5,2,buff[i]);
     sprintf(mystring, "%s %s %s %s %s %s !", buff[0], buff[1], buff[2], buff[3], buff[4], buff[5]);
-    //sprintf(mystring,"%2.2f %2.2f %2.2f %2.2f %2.2f %2.2f !",datos[0],datos[1],datos[2],datos[4],datos[5],datos[6]);
-    //Serial.print(mystring);
     send_uart(mystring);
-    flag_accion = 0;
+    flag_accion = false;
   }
 
-  //CALIBRAR
+  /***************************************************************
+ *      Función para calibrar el MPU6050 en un momento deseado   *
+/*****************************************************************/
+
   if ((data_rec[0] == 'h') && (flag_accion))
   {
     calibrar_MPU6050(offset);
-    flag_accion = 0;
+    flag_accion = false;
   }
 
+  /***********************************************************************************************************************
+ *    En caso que el vehículo este rotando se obtiene cada 50ms el valor del gyróscopo en el eje Z y lo va acumulando    *
+/*************************************************************************************************************************/
+
   if ((flag_timer) && (flag_rotacion))
-  {
-    EIMSK |= (0 << INT0);
-    EIMSK |= (0 << INT1);
-    flag_transmision = true;
-    Wire.beginTransmission(0x68);
-    Wire.write(0x47);                 // starting with register 0x3B (ACCEL_XOUT_H)
-    Wire.endTransmission(false);
-    Wire.requestFrom(0x68, 2, true); // request a total of 14 registers
-    datos[6] = Wire.read() << 8 | Wire.read();
-    flag_transmision = false;
-    if (datos[6] >= 0x8000) datos[6] = -((65535 - datos[6]) + 1);
-    datos[6] = (datos[6] / 131) - offset[2];
-    valor_giro_temp = valor_giro_temp + (datos[6] / 20);  
-    
+  {    
+    valor_giro_temp = valor_giro_temp + obtener_z_gyro(offset[2]) * (TIME_SAMPLE/1000);
     Serial.println(valor_giro_temp);
-    //print_datos();
     flag_timer = false;
   }
 
   if (Serial1.available() > 0)
-  {
     receive_uart();
-  }
-
 
 }
 
+/************************************************************************************************************************************
+ * Función para mover el vehículo. Se deben pasar como parámetros la distancia a recorrer, la velocidad de los motores y el sentido *
+/************************************************************************************************************************************/
 void mover(int distancia, int vlc, int sentido)
 {
-  //EIMSK |= (1 << INT0);
-  //EIMSK |= (1 << INT1);
   if (!(sentido))
   {
     analogWrite(PWM1, 127 + vlc);
@@ -162,6 +155,9 @@ void mover(int distancia, int vlc, int sentido)
 
 }
 
+/******************************************************************************************
+ * Función para girar el vehículo. Se debe pasar el sentido de giro y los grados deseados *
+/******************************************************************************************/
 void girar(int grados, int sentido) //0 antihorario 1 horario
 {
   grados_max = grados;
@@ -190,7 +186,10 @@ void girar(int grados, int sentido) //0 antihorario 1 horario
 
 }
 
-
+/*******************************************************************************************************************************************************
+ * Arma la trama con el dato a enviar y lo envía por la UART. La trama contiene un encabezado, la longitud del dato high y low, el identificador del ***
+ * objeto que requirió el dato, la dirección desde la cual se envía el dato, el DATO y un fin de trama *************************************************
+/*******************************************************************************************************************************************************/
 void send_uart(char* data_send)
 {
   int data_len    = 0;
@@ -284,8 +283,6 @@ void print_datos()
 
 void ISR_Timer()
 {
-  //if (flag_mover)
-    //contador_movimiento++;
   if ( ( fabs(valor_giro_temp) > grados_max) && (flag_rotacion == true) )
     {
       analogWrite(PWM1, 127);
@@ -294,17 +291,7 @@ void ISR_Timer()
       send_uart("ok!");
       valor_giro_temp = 0;
     }
-  
-  //if(contador_movimiento > distancia_max/2)
-  //  {
-  //    contador_movimiento = 0;
-  //    flag_mover = false;
-  //    analogWrite(PWM1, 127);
-  //    analogWrite(PWM2, 127);
-  //    send_uart("ok!");
-  //    
-  //  }
-  
+      
   if ( ( distancia_temp > distancia_max) && (flag_mover == true) )
     {
       analogWrite(PWM1, 127);
@@ -319,24 +306,14 @@ void ISR_Timer()
 
 void ISR_INTE0()
 {
- if (flag_mover)
- {
-   distancia_temp = distancia_temp + DIST_PULS;
-   //Serial.println(distancia_temp);
- }
- //Serial.println(distancia_temp);
- //Serial.print("INTE0");
+  if (flag_mover)
+    distancia_temp = distancia_temp + DIST_PULS;
 }
 
 void ISR_INTE1()
 {
- //Serial.println(distancia_temp);
-   if (flag_mover)
-  {
-    //Serial.println(distancia_temp);
+  if (flag_mover)
     distancia_temp = distancia_temp + DIST_PULS;
-  }
- //Serial.print("INTE1");
 }
 
 
