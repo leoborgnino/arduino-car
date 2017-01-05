@@ -1,6 +1,9 @@
+#include <NewPing.h>
+#include <Servo.h>
 #include <TimerOne.h>
 #include <Wire.h>
-#include <MPU6050.h>
+
+#include </home/leo/Documentos/Carrito Software/arduino-car/Librerias/MPU6050.h>
 
 /********************************
  *        Constantes            *
@@ -11,7 +14,15 @@ const int   INTE0       =    2;
 const int   INTE1       =    3;
 const int   PPV         =   24;
 const int   TIME_SAMPLE =   50;
-const int   BAUD_RATE   = 115200;
+
+const int  ULTR_N_STEPS =    8;
+const int  ULTR_TRIGER  =   35;
+const int  ULTR_ECHO    =   19;
+const int  ULTR_INT     =    0;
+const int  ULTR_SERVO   =    8;
+
+const int   BAUD_RATE   = 9600;
+const int  MICRO_ADDR   =   10; //Verificar
 const float LONG_ARC    =  2 * 3.14 * 10; //longitud de arco de la rueda en cm
 const float DIST_PULS   = LONG_ARC / PPV;
 
@@ -21,25 +32,34 @@ boolean flag_mover       = false;
 boolean flag_transmision = false;
 boolean flag_accion      = false;
 
-char formlist[100];
-char data_rec[100];
-char mystring[30];
+char formlist[150];
+char data_rec[10];
+char mystring[100];
 char SerRx;
-int  respuestaid        =  0;
-int  MICRO_ADDR         = 10; //Verificar
 int  flag_uart          =  0;
 int  contador_backup    =  0;
 int  data_len_rx        =  0;
+
+int  respuestaid_mpu    =  0;
+int  respuestaid_plan   =  0;
+int  respuestaid_ultr   =  0;
 
 float valor_giro_temp   = 0;
 float distancia_temp    = 0;
 float aceleracion_old   = 0;
 float velocidad         = 0;
 float velocidad_old     = 0;
+
 float offset[6]         = {0, 0, 0, 0, 0, 0};
 float datos[7];
+
+float ultr_data[ULTR_N_STEPS];
+int   ultr_index         =  0;
+long  ultr_start_time    =  0;
+int contador_ultrasonido =  0;
+ 
 float Tmp;
-char buff[6][6];
+char buff[8][7];
 
 long distancia_max      = 0;
 int contador_movimiento = 0;
@@ -47,32 +67,53 @@ int encoder1            = 0; //contadores encoders ruedas
 int encoder2            = 0;
 int grados_max          = 0;
 
+Servo ultr_servo;
+
 /********************************
- * Declaración de variables     *
+ * Declaración de funciones     *
 /********************************/
 
-void send_uart(char*);
+void send_uart(char*,int);
 void receive_uart();
 void print_datos();
 void mover(int, int, int); //moverse hacia adelante x cm a y velocidad
 void girar(int, int);      //girar (grados, sentido) 0 horario, 1 antihorario
 void reset_transmision();
+double ultr_distance();
 
 void setup()
 {
   TCCR2B = TCCR2B & 0b11111000 | 0x01;   // Establece frecuencia pwm pines 9,10 a 31K
   Timer1.initialize(TIME_SAMPLE*1000);   // Dispara cada TIME_SAMPLE ms
   Timer1.attachInterrupt(ISR_Timer);     // Activa la interrupcion y la asocia a ISR_Blink
+  
   Serial.begin(BAUD_RATE);               // Inicio la transmision serie
-  Serial1.begin(BAUD_RATE, SERIAL_8N1);     
+  Serial2.begin(BAUD_RATE, SERIAL_8N1);
+  
   analogWrite(PWM1, 127);                // PWM1 50% duty
   analogWrite(PWM2, 127);                // PWM2 50% duty
-  attachInterrupt(0, ISR_INTE0, CHANGE); // Interrupcion externa en pin 2 por cambio de nivel
-  attachInterrupt(1, ISR_INTE1, CHANGE); // Interrupción externa en pin 3 por cambio de nivel
+  
+  attachInterrupt(digitalPinToInterrupt(INTE0), ISR_INTE0,    CHANGE); // Interrupcion externa en pin 2 por cambio de nivel
+  attachInterrupt(digitalPinToInterrupt(INTE1), ISR_INTE1,    CHANGE); // Interrupción externa en pin 3 por cambio de nivel
+  attachInterrupt(digitalPinToInterrupt(ULTR_ECHO),ISR_ECHO_INT, CHANGE); 
+
+// REMOVE
+  pinMode(31,OUTPUT); //GND del ultrasonido
+  pinMode(37,OUTPUT); //VCC ultrasonido
+  digitalWrite(31,LOW);//GND
+  digitalWrite(37,HIGH);//VCC
+//REMOVE
+
+  ultr_servo.attach(ULTR_SERVO);         // Aviso al programa que el servo estara en el pin 9
+  ultr_servo.write(90);                  // Set servo to mid-point
+
+  for(int i = 0; i < ULTR_N_STEPS; i++)
+    ultr_data[i] = 0.0;
+  
   init_MPU6050();
   calibrar_MPU6050(offset);
   obtener_datos(datos, offset);
-
+  
 
 }
 
@@ -83,27 +124,47 @@ void setup()
 void loop()
 {
 
-  if ((data_rec[0] == 'd') && (flag_accion))
+
+  if ((data_rec[1] == 'd') && (flag_accion))
   {
-    mover(data_rec[1], data_rec[2], data_rec[3]);
+    respuestaid_plan = data_rec[0];
+    mover(data_rec[2], data_rec[3], data_rec[4]);
     flag_accion = false;
   }
 
 
-  if ((data_rec[0] == 'f') && (flag_accion))
+  if ((data_rec[1] == 'f') && (flag_accion))
   {
-    girar(data_rec[1], data_rec[2]);
+    respuestaid_plan = data_rec[0];
+    girar(data_rec[2], data_rec[3]);
     flag_accion = false;
   }
 
 
-  if ((data_rec[0] == 'g') && (flag_accion))
+  if ((data_rec[1] == 'g') && (flag_accion))
   {
+    respuestaid_mpu = data_rec[0];
     obtener_datos(datos, offset);
-    for(int i=0;i<6;i++)
-      dtostrf(datos[i],5,2,buff[i]);
+    for(int i=0;i<7;i++)
+    {
+      dtostrf(datos[i],6,2,buff[i]);
+    }
     sprintf(mystring, "%s %s %s %s %s %s !", buff[0], buff[1], buff[2], buff[3], buff[4], buff[5]);
-    send_uart(mystring);
+    send_uart(mystring, respuestaid_mpu);
+    flag_accion = false;
+  }
+
+  if ((data_rec[1] == 'i') && (flag_accion))
+  {
+    respuestaid_ultr = data_rec[0];
+    for(int i = 0; i < ULTR_N_STEPS; i++)
+    {
+      if(ultr_data[i] > 300)
+        ultr_data[i] = 300.0;
+      dtostrf(ultr_data[i],6,2,buff[i]);
+    }
+    sprintf(mystring, "%s %s %s %s %s %s %s %s !", buff[0], buff[1], buff[2], buff[3], buff[4], buff[5], buff[6], buff[7]);
+    send_uart(mystring, respuestaid_ultr);
     flag_accion = false;
   }
 
@@ -113,6 +174,7 @@ void loop()
 
   if ((data_rec[0] == 'h') && (flag_accion))
   {
+    respuestaid_mpu = data_rec[0];
     calibrar_MPU6050(offset);
     flag_accion = false;
   }
@@ -122,13 +184,12 @@ void loop()
 /*************************************************************************************************************************/
 
   if ((flag_timer) && (flag_rotacion))
-  {    
+  {
     valor_giro_temp = valor_giro_temp + obtener_z_gyro(datos, offset) * (TIME_SAMPLE/1000);
-    Serial.println(valor_giro_temp);
     flag_timer = false;
   }
 
-  if (Serial1.available() > 0)
+  if (Serial2.available() > 0)
     receive_uart();
 
 }
@@ -190,7 +251,7 @@ void girar(int grados, int sentido) //0 antihorario 1 horario
  * Arma la trama con el dato a enviar y lo envía por la UART. La trama contiene un encabezado, la longitud del dato high y low, el identificador del ***
  * objeto que requirió el dato, la dirección desde la cual se envía el dato, el DATO y un fin de trama *************************************************
 /*******************************************************************************************************************************************************/
-void send_uart(char* data_send)
+void send_uart(char* data_send, int respuestaid)
 {
   int data_len    = 0;
   char caracter   = 0;
@@ -226,12 +287,12 @@ void send_uart(char* data_send)
   formlist[5 + data_len] = mod_iheader;
 
   for (int i = 0 ; i < data_len + 6; i++)
-    Serial1.write(formlist[i]);
+    Serial2.write(formlist[i]);
 }
 
 void receive_uart()
 {
-  SerRx = Serial1.read();
+  SerRx = Serial2.read();
   if ( ( flag_uart == 0 ) && ( (SerRx & 0xE0) == 160) ) //Encontramos el MIT
   {
     flag_uart++;
@@ -253,12 +314,12 @@ void receive_uart()
   }
   else if ( flag_uart == 4 )
   {
-    respuestaid = SerRx;
+    data_rec[0] = SerRx;
     flag_uart++;
   }
   else if ( (flag_uart > 4) && (flag_uart < 5 + data_len_rx) )
   {
-    data_rec[flag_uart - 5] = SerRx;
+    data_rec[flag_uart - 4] = SerRx;
     flag_uart++;
   }
   else if ( (SerRx == 64) && ( flag_uart == (5 + data_len_rx) ) ) //termina la recepción de la trama
@@ -270,17 +331,6 @@ void receive_uart()
 
 }
 
-void print_datos()
-{
-  Serial.print("AcX = "); Serial.print(datos[0]);
-  Serial.print(" | AcY = "); Serial.print(datos[1]);
-  Serial.print(" | AcZ = "); Serial.print(datos[2]);
-  Serial.print(" | Tmp = "); Serial.print(Tmp / 340.00 + 36.53); //equation for temperature in degrees C from datasheet
-  Serial.print(" | GyX = "); Serial.print(datos[4]);
-  Serial.print(" | GyY = "); Serial.print(datos[5]);
-  Serial.print(" | GyZ = "); Serial.println(datos[6]);
-}
-
 void ISR_Timer()
 {
   if ( ( fabs(valor_giro_temp) > grados_max) && (flag_rotacion == true) )
@@ -288,19 +338,28 @@ void ISR_Timer()
       analogWrite(PWM1, 127);
       analogWrite(PWM2, 127);
       flag_rotacion = false;
-      send_uart("ok!");
+      send_uart("ok!", respuestaid_plan);
       valor_giro_temp = 0;
     }
-      
+
   if ( ( distancia_temp > distancia_max) && (flag_mover == true) )
     {
       analogWrite(PWM1, 127);
       analogWrite(PWM2, 127);
       flag_mover = false;
-      send_uart("ok!");
+      send_uart("ok!", respuestaid_plan);
       distancia_temp = 0;
     }
-  
+
+    contador_ultrasonido = (contador_ultrasonido+1) % 2;
+    if ( contador_ultrasonido == 1)
+    {
+       ultr_servo.write(ultr_index*15+37.5);
+       digitalWrite(35,HIGH); //se envia el pulso ultrasonico
+       delayMicroseconds(20);//El pulso debe tener una duracion minima de 10 microsegundos
+       digitalWrite(35,LOW); //Ambas lineas son por estabilizacion del sensor
+    }
+
   flag_timer = true;
 }
 
@@ -316,7 +375,17 @@ void ISR_INTE1()
     distancia_temp = distancia_temp + DIST_PULS;
 }
 
-
-
+void ISR_ECHO_INT()
+{
+ if(digitalRead(ULTR_ECHO))
+ {
+  ultr_start_time = micros();
+ }
+ else
+ {
+    ultr_data[ultr_index] = (micros()-ultr_start_time)/58;
+    ultr_index = (ultr_index+1)%ULTR_N_STEPS;
+ }
+}
 
 

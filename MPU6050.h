@@ -21,7 +21,12 @@ void obtener_datos(float *datos, float *offset)
   
   for( int i = 0; i < 7; i++ )
     {
-      datos[i] = Wire.read()<<8|Wire.read();
+      if (i == 3)
+	    datos[6] = Wire.read()<<8|Wire.read();
+      else if (i > 3)
+	datos[i-1] = Wire.read()<<8|Wire.read();
+      else
+	datos[i] = Wire.read()<<8|Wire.read();
     }
   
   for( int i = 0; i < 3; i++)
@@ -35,16 +40,14 @@ void obtener_datos(float *datos, float *offset)
   Wire.endTransmission(true);
 }
 
-float obtener_z_gyro(float *offset)
+float obtener_z_gyro(float *datos, float *offset)
 {
   float z_gyro = 0;
-  flag_transmision = true;
   Wire.beginTransmission(MPU6050_ADRESS);
   Wire.write(0x47);                // starting with register 0x3B (ACCEL_XOUT_H)
   Wire.endTransmission(false);
   Wire.requestFrom(MPU6050_ADRESS, 2, true); // request a total of 14 registers
   datos[6] = Wire.read() << 8 | Wire.read();
-  flag_transmision = false;
   if (datos[6] >= 0x8000)
     datos[6] = -((65535 - datos[6]) + 1);
   datos[6] = (datos[6] / 131) - offset[2];
@@ -70,6 +73,8 @@ void calibrar_MPU6050(float *offset)
       offsetX = Wire.read()<<8|Wire.read(); // 0x3B (ACCEL_XOUT_H) & 0x3C (ACCEL_XOUT_L)
       offsetY = Wire.read()<<8|Wire.read(); // 0x45 (GYRO_YOUT_H) & 0x46 (GYRO_YOUT_L)
       offsetZ = Wire.read()<<8|Wire.read(); // 0x47 (GYRO_ZOUT_H) & 0x48 (GYRO_ZOUT_L)
+
+      
       
       if (offsetX >= 0x8000) offsetX = -((65535 - offsetX)+1);
       offsetX = offsetX / 131;
