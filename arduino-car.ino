@@ -15,11 +15,13 @@ const int   INTE1       =    3;
 const int   PPV         =   24;
 const int   TIME_SAMPLE =   50;
 
+
+const int  ULTR_PERIOD  =  250;
 const int  ULTR_N_STEPS =    8;
 const int  ULTR_TRIGER  =   35;
 const int  ULTR_ECHO    =   19;
 const int  ULTR_INT     =    0;
-const int  ULTR_SERVO   =    8;
+const int  ULTR_SERVO   =   44;
 
 const int   BAUD_RATE   = 9600;
 const int  MICRO_ADDR   =   10; //Verificar
@@ -97,15 +99,11 @@ void setup()
   attachInterrupt(digitalPinToInterrupt(INTE1), ISR_INTE1,    CHANGE); // Interrupción externa en pin 3 por cambio de nivel
   attachInterrupt(digitalPinToInterrupt(ULTR_ECHO),ISR_ECHO_INT, CHANGE); 
 
-// REMOVE
-  pinMode(31,OUTPUT); //GND del ultrasonido
-  pinMode(37,OUTPUT); //VCC ultrasonido
-  digitalWrite(31,LOW);//GND
-  digitalWrite(37,HIGH);//VCC
-//REMOVE
-
+  pinMode(ULTR_TRIGER,OUTPUT);
+  digitalWrite(ULTR_TRIGER,LOW);
+  
   ultr_servo.attach(ULTR_SERVO);         // Aviso al programa que el servo estara en el pin 9
-  ultr_servo.write(90);                  // Set servo to mid-point
+  ultr_servo.write(10);                  // Set servo to mid-point
 
   for(int i = 0; i < ULTR_N_STEPS; i++)
     ultr_data[i] = 0.0;
@@ -351,13 +349,15 @@ void ISR_Timer()
       distancia_temp = 0;
     }
 
-    contador_ultrasonido = (contador_ultrasonido+1) % 2;
+    contador_ultrasonido = (contador_ultrasonido+1) % ULTR_PERIOD;
     if ( contador_ultrasonido == 1)
     {
+       //Serial.print("Servo move: ");Serial.println(ultr_index*15+37.5);
        ultr_servo.write(ultr_index*15+37.5);
-       digitalWrite(35,HIGH); //se envia el pulso ultrasonico
+       digitalWrite(ULTR_TRIGER,HIGH); //se envia el pulso ultrasonico
        delayMicroseconds(20);//El pulso debe tener una duracion minima de 10 microsegundos
-       digitalWrite(35,LOW); //Ambas lineas son por estabilizacion del sensor
+       digitalWrite(ULTR_TRIGER,LOW); //Ambas lineas son por estabilizacion del sensor
+       
     }
 
   flag_timer = true;
@@ -385,6 +385,7 @@ void ISR_ECHO_INT()
  {
     ultr_data[ultr_index] = (micros()-ultr_start_time)/58;
     ultr_index = (ultr_index+1)%ULTR_N_STEPS;
+    //Serial.print(ultr_index);Serial.print(" ");Serial.println(ultr_data[ultr_index]);
  }
 }
 
