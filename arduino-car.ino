@@ -1,9 +1,8 @@
-#include <NewPing.h>
 #include <Servo.h>
 #include <TimerOne.h>
 #include <Wire.h>
 
-#include </home/leo/Documentos/Carrito Software/arduino-car/Librerias/MPU6050.h>
+#include </home/lborgnino/CarritoSoftware/arduino-car/Librerias/MPU6050.h>
 
 /********************************
  *        Constantes            *
@@ -12,20 +11,21 @@ const int   PWM2        =    9;
 const int   PWM1        =   10;
 const int   INTE0       =    2;
 const int   INTE1       =    3;
-const int   PPV         =   24;
+const float PPV         =   24.0;
 const int   TIME_SAMPLE =   50;
 
 
-const int  ULTR_PERIOD  =  250;
-const int  ULTR_N_STEPS =    8;
-const int  ULTR_TRIGER  =   35;
-const int  ULTR_ECHO    =   19;
-const int  ULTR_INT     =    0;
-const int  ULTR_SERVO   =   44;
+const int   ULTR_PERIOD    =  250;
+const int   ULTR_N_STEPS   =    8;
+const int   ULTR_TRIGER    =   35;
+const int   ULTR_ECHO      =   19;
+const int   ULTR_INT       =    0;
+const int   ULTR_SERVO     =   44;
+const float ALARM_DISTANCE = 30.0; 
 
 const int   BAUD_RATE   = 9600;
 const int  MICRO_ADDR   =   10; //Verificar
-const float LONG_ARC    =  2 * 3.14 * 10; //longitud de arco de la rueda en cm
+const float LONG_ARC    =  2.0 * 3.14 * 10.0; //longitud de arco de la rueda en cm
 const float DIST_PULS   = LONG_ARC / PPV;
 
 boolean flag_rotacion    = false;
@@ -33,6 +33,8 @@ boolean flag_timer       = false;
 boolean flag_mover       = false;
 boolean flag_transmision = false;
 boolean flag_accion      = false;
+boolean flag_alarm       = false;
+boolean flag_back        = false;
 
 char formlist[150];
 char data_rec[10];
@@ -78,7 +80,7 @@ Servo ultr_servo;
 void send_uart(char*,int);
 void receive_uart();
 void print_datos();
-void mover(int, int, int); //moverse hacia adelante x cm a y velocidad
+void mover(double, int, int); //moverse hacia adelante x cm a y velocidad
 void girar(int, int);      //girar (grados, sentido) 0 horario, 1 antihorario
 void reset_transmision();
 double ultr_distance();
@@ -86,7 +88,7 @@ double ultr_distance();
 void setup()
 {
   TCCR2B = TCCR2B & 0b11111000 | 0x01;   // Establece frecuencia pwm pines 9,10 a 31K
-  Timer1.initialize(TIME_SAMPLE*1000);   // Dispara cada TIME_SAMPLE ms
+  Timer1.initialize(500.0);   // Dispara cada TIME_SAMPLE ms
   Timer1.attachInterrupt(ISR_Timer);     // Activa la interrupcion y la asocia a ISR_Blink
   
   Serial.begin(BAUD_RATE);               // Inicio la transmision serie
@@ -152,6 +154,7 @@ void loop()
     flag_accion = false;
   }
 
+       //
   if ((data_rec[1] == 'i') && (flag_accion))
   {
     respuestaid_ultr = data_rec[0];
@@ -195,7 +198,7 @@ void loop()
 /************************************************************************************************************************************
  * Función para mover el vehículo. Se deben pasar como parámetros la distancia a recorrer, la velocidad de los motores y el sentido *
 /************************************************************************************************************************************/
-void mover(int distancia, int vlc, int sentido)
+void mover(double distancia, int vlc, int sentido)
 {
   if (!(sentido))
   {
@@ -210,6 +213,7 @@ void mover(int distancia, int vlc, int sentido)
   contador_movimiento = 0;
   distancia_max = distancia;
   distancia_temp = 0;
+  flag_back = sentido;
   flag_mover = true;
 
 }
@@ -331,27 +335,42 @@ void receive_uart()
 
 void ISR_Timer()
 {
-  if ( ( fabs(valor_giro_temp) > grados_max) && (flag_rotacion == true) )
+  if ( ( fabs(valor_giro_temp) < grados_max) && (flag_rotacion == true) )
     {
       analogWrite(PWM1, 127);
       analogWrite(PWM2, 127);
       flag_rotacion = false;
-      send_uart("ok!", respuestaid_plan);
+      send_uart("0 !", respuestaid_plan);
       valor_giro_temp = 0;
     }
 
-  if ( ( distancia_temp > distancia_max) && (flag_mover == true) )
+  if ( (( distancia_temp > distancia_max) || flag_alarm) && (flag_mover == true) )
     {
       analogWrite(PWM1, 127);
       analogWrite(PWM2, 127);
       flag_mover = false;
-      send_uart("ok!", respuestaid_plan);
+
+    if(!(flag_back))
+      if(flag_alarm)
+      {
+        flag_alarm = false;
+        mover(distancia_temp,70,1);
+      }
+      else
+      {
+        send_uart("0 !", respuestaid_plan);
+      }
+      else
+        send_uart("1 !", respuestaid_plan);            
+  
       distancia_temp = 0;
+
     }
 
     contador_ultrasonido = (contador_ultrasonido+1) % ULTR_PERIOD;
     if ( contador_ultrasonido == 1)
     {
+      //Serial.print(distancia_temp); Serial.print(" "); Serial.print(distancia_max);Serial.print(" ");Serial.println(DIST_PULS);
        //Serial.print("Servo move: ");Serial.println(ultr_index*15+37.5);
        ultr_servo.write(ultr_index*15+37.5);
        digitalWrite(ULTR_TRIGER,HIGH); //se envia el pulso ultrasonico
@@ -365,8 +384,8 @@ void ISR_Timer()
 
 void ISR_INTE0()
 {
-  if (flag_mover)
-    distancia_temp = distancia_temp + DIST_PULS;
+  //if (flag_mover)
+  //  distancia_temp = distancia_temp + DIST_PULS;
 }
 
 void ISR_INTE1()
@@ -384,8 +403,10 @@ void ISR_ECHO_INT()
  else
  {
     ultr_data[ultr_index] = (micros()-ultr_start_time)/58;
+    if ((flag_mover) && (!flag_back) && (ultr_data[ultr_index] < ALARM_DISTANCE))
+      flag_alarm = true;
     ultr_index = (ultr_index+1)%ULTR_N_STEPS;
-    //Serial.print(ultr_index);Serial.print(" ");Serial.println(ultr_data[ultr_index]);
+    Serial.print(ultr_index);Serial.print(" ");Serial.println(ultr_data[ultr_index]);
  }
 }
 
