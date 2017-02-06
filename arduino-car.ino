@@ -2,11 +2,12 @@
 #include <TimerOne.h>
 #include <Wire.h>
 
-#include "/home/leo/Documentos/Carrito Software/arduino-car/Librerias/MPU6050.h"
+#include "/home/lborgnino/CarritoSoftware/arduino-car/Librerias/MPU6050.h"
 
 /********************************
  *        Constantes            *
 /********************************/
+
 const int   PWM2           =    9;
 const int   PWM1           =   10;
 const int   INTE0          =    2;
@@ -14,8 +15,9 @@ const int   INTE1          =    3;
 const float PPV            = 24.0;
 const int   TIME_SAMPLE    =   50;
 const int   CONTROL_PERIOD =   20;
+const float DELTA_T        = (TIME_SAMPLE * CONTROL_PERIOD)/1000.0;
 
-const int   ULTR_PERIOD    =  250;
+const int   ULTR_PERIOD    =    4;
 const int   ULTR_N_STEPS   =    8;
 const int   ULTR_TRIGER    =   35;
 const int   ULTR_ECHO      =   19;
@@ -70,8 +72,8 @@ float p_controller[2]     = {0.0, 0.0};
 float d_controller[2]     = {0.0, 0.0};
 float i_controller[2]     = {0.0, 0.0};
 float prev_error[2]       = {0.0, 0.0};
-double kd                 = 0.0;
-double ki                 = 0.0;
+double kd                 = 1.0;
+double ki                 = 0.20;
 double kp                 = 20.0;
 
 
@@ -83,7 +85,7 @@ long distancia_max        = 0;
 int sentido_temp          = 0;
 int contador_movimiento   = 0;
 int contador_pid          = 0;
-int encoder1              = 0; //contadores encoders ruedas
+int encoder1              = 0; 
 int encoder2              = 0;
 int grados_max            = 0;
 
@@ -238,10 +240,8 @@ void loop()
     flag_accion = false;
   }
 
-  /***********************************************************************************************************************
- *    En caso que el vehículo este rotando se obtiene cada 50ms el valor del gyróscopo en el eje Z y lo va acumulando    *
-/*************************************************************************************************************************/
 
+  // En caso que el vehículo este rotando se obtiene cada 50ms el valor del gyróscopo en el eje Z y lo va acumulando
   if ((flag_timer) && (flag_rotacion))
   {
     valor_giro_temp = valor_giro_temp + obtener_z_gyro(datos, offset) * (TIME_SAMPLE/1000);
@@ -301,6 +301,7 @@ void mover(int distancia, double vlc, int sentido)
   i_controller[1]  = 0;
   prev_error[0]    = 0;
   prev_error[1]    = 0;
+  flag_back = sentido;
   flag_mover = true;
 }
 
@@ -320,15 +321,15 @@ void girar(int grados, int sentido)
   }
   if (sentido)
   {
-    analogWrite(PWM2, 210);
-    analogWrite(PWM1, 30);
+    //analogWrite(PWM2, 210);
+    //analogWrite(PWM1, 30);
     valor_giro_temp = 0;
     flag_rotacion = 1;
   }
   else
   {
-    analogWrite(PWM1, 210);
-    analogWrite(PWM2, 40);
+    //analogWrite(PWM1, 210);
+    //analogWrite(PWM2, 40);
     valor_giro_temp = 0;
     flag_rotacion = 1;
   }
@@ -421,7 +422,8 @@ void receive_uart()
 
 void ISR_Timer()
 {
-  if ( ( fabs(valor_giro_temp) < grados_max) && (flag_rotacion == true) )
+  //if ( ( fabs(valor_giro_temp) < grados_max) && (flag_rotacion == true) )
+  if (flag_rotacion) 
     {
       analogWrite(PWM1, 127);
       analogWrite(PWM2, 127);
@@ -439,12 +441,14 @@ void ISR_Timer()
       analogWrite(PWM1, 127);
       analogWrite(PWM2, 127);
       flag_mover = false;
+      flag_cntrl_vel = false;
 
     if(!(flag_back))
       if(flag_alarm)
       {
         flag_alarm = false;
-        mover(distancia_temp[0],70,1);
+        Serial.print("DISTANCIA TEMP: ");Serial.println(distancia_temp[0]);
+        mover(distancia_temp[0],1.0,1);
       }
       else
       {
@@ -514,7 +518,7 @@ double pid_controller(int motor)
   double pid_contr = 0;
   double velocidad_temp = 0; 
 
-  velocidad_temp = (distancia_temp[motor] - distancia_temp_d[motor])/100.0;
+  velocidad_temp = ((distancia_temp[motor] - distancia_temp_d[motor])*0.01)/DELTA_T;
   error = velocidad_ref - velocidad_temp;
   if(motor == 0)
   {
@@ -527,8 +531,8 @@ double pid_controller(int motor)
   distancia_temp_d[motor] = distancia_temp[motor];
 
   p_controller[motor]  = kp * error;
-  i_controller[motor] += ki * error * 1.0;
-  d_controller[motor]  = (kd * (error - prev_error[motor])) / (1.0);
+  i_controller[motor] += ki * error * DELTA_T;
+  d_controller[motor]  = (kd * (error - prev_error[motor])) / DELTA_T;
   prev_error[motor]    = error;
   pid_contr      = p_controller[motor] + i_controller[motor] + d_controller[motor];
   movimiento[motor]    += pid_contr;
