@@ -248,6 +248,20 @@ void loop()
     flag_timer = false;
   }
 
+  if (flag_cntrl_vel && flag_mover)
+    if (!(sentido_temp))
+      {
+        analogWrite(PWM2, 127 + pid_controller(0));
+        analogWrite(PWM1, 127 + pid_controller(1));
+        flag_cntrl_vel = false;
+      }
+    else
+      {
+        analogWrite(PWM2, 127 - pid_controller(0));
+        analogWrite(PWM1, 127 - pid_controller(1));
+        flag_cntrl_vel = false;
+      }
+
   if (Serial2.available() > 0)
     receive_uart();
 
@@ -418,7 +432,7 @@ void ISR_Timer()
 
   contador_pid = (contador_pid + 1) % CONTROL_PERIOD;
   if((contador_pid == 1) && flag_mover)
-    flag_cntrl_vel = 1;
+    flag_cntrl_vel = true;
 
   if ( (( distancia_temp[0] > distancia_max) || flag_alarm) && (flag_mover == true) )
     {
