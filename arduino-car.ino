@@ -2,14 +2,14 @@
 #include <TimerOne.h>
 #include <Wire.h>
 
-#include "/home/lborgnino/CarritoSoftware/arduino-car/Librerias/MPU6050.h"
+#include "/home/maxiarmesto/arduino-car/Librerias/MPU6050.h"
 
 /********************************
  *        Constantes            *
 /********************************/
 
-const int   PWM2           =    9;
-const int   PWM1           =   10;
+const int   PWM2           =    9;//Motor Volante
+const int   PWM1           =   10;//Motor Principal
 const int   INTE0          =    2;
 const int   INTE1          =    3;
 const float PPV            = 24.0;
@@ -29,6 +29,9 @@ const int   BAUD_RATE   = 9600;
 const int   MICRO_ADDR  =   10; 
 const float LONG_ARC    =  2.0 * 3.14 * 10.0; //longitud de arco de la rueda en cm
 const float DIST_PULS   = LONG_ARC / PPV;
+const int   ROTACION_VOLANTE = 120;
+const int   PULSOS_VOLANTE = 8;
+const float   PASO_VOLANTE   = ROTACION_VOLANTE / PULSOS_VOLANTE;
 
 /********************************
  *    Variables Globales        *
@@ -37,6 +40,7 @@ const float DIST_PULS   = LONG_ARC / PPV;
 // Banderas
 
 boolean flag_rotacion    = false;
+boolean flag_girar       = false;
 boolean flag_timer       = false;
 boolean flag_mover       = false;
 boolean flag_transmision = false;
@@ -83,11 +87,14 @@ float velocidad           = 0;
 float velocidad_old       = 0;
 long distancia_max        = 0;
 int sentido_temp          = 0;
+int sentido_giro          = 0;
 int contador_movimiento   = 0;
 int contador_pid          = 0;
 int encoder1              = 0; 
 int encoder2              = 0;
 int grados_max            = 0;
+int grados_volante_max    = 0;
+int posicion_rueda        = 0;
 
 // Variables de Ultrasonido
 
@@ -115,7 +122,7 @@ Servo ultr_servo;
  * @param Cadena de caracteres a enviar. Debe finalizar con el caracter "!" 
  * @param Id del objeto que va a recibir los datos
  */
-void send_uart(char*,int);
+void send_uart(const char*, int);
 
 /**                                                                                                                                                                  
  * @name receive_uart
@@ -123,6 +130,21 @@ void send_uart(char*,int);
  * @param None
  */
 void receive_uart();
+
+/**                                                                                                                                                                  
+ * @name centrar_volante
+ * @brief Coloca el volante en la posicion central.
+ * @param None
+ */
+void centrar_volante();
+
+/**                                                                                                                                                                  
+ * @name doblar_volante
+ * @brief Rotacion del volante un determinado angulo.
+ * @param type: int. Angulo a rotar en grados.
+ * @param type: int. Sentido de rotacion. 0: Horario 1: Antihorario.
+ */
+void doblar_volante(int, int);
 
 /**                                                                                                                                                                  
  * @name mover Warning: Podríamos cambiarle el nombre
@@ -240,6 +262,14 @@ void loop()
     flag_accion = false;
   }
 
+  if ((data_rec[1] == 'k') && (flag_accion))
+  {
+    centrar_volante();
+    respuestaid_plan = data_rec[0];
+    girar(data_rec[5], data_rec[6]);
+    mover(data_rec[2], data_rec[3], data_rec[4]);
+    flag_accion = false;
+  }
 
   // En caso que el vehículo este rotando se obtiene cada 50ms el valor del gyróscopo en el eje Z y lo va acumulando
   if ((flag_timer) && (flag_rotacion))
@@ -251,13 +281,11 @@ void loop()
   if (flag_cntrl_vel && flag_mover)
     if (!(sentido_temp))
       {
-        analogWrite(PWM2, 127 + pid_controller(0));
         analogWrite(PWM1, 127 + pid_controller(1));
         flag_cntrl_vel = false;
       }
     else
       {
-        analogWrite(PWM2, 127 - pid_controller(0));
         analogWrite(PWM1, 127 - pid_controller(1));
         flag_cntrl_vel = false;
       }
@@ -270,37 +298,35 @@ void loop()
 /************************************************************************************************************************************
  * Función para mover el vehículo. Se deben pasar como parámetros la distancia a recorrer, la velocidad de los motores y el sentido *
 /************************************************************************************************************************************/
+void centrar_volante()
+{
+  analogWrite(PWM2, 210);
+  delay(2);
+  analogWrite(PWM2, 127);
+  doblar_volante(45, 1);
+}
 
 void mover(int distancia, double vlc, int sentido)
 {
   if (!(sentido))
   {
     analogWrite(PWM1, 127 + vel_inicial);
-    analogWrite(PWM2, 127 + vel_inicial);
   }
   else
   {
     analogWrite(PWM1, 127 - vel_inicial);
-    analogWrite(PWM2, 127 - vel_inicial);
   }
   contador_movimiento = 0;
   distancia_max = distancia;
   velocidad_ref = vlc;
   sentido_temp = sentido;
   movimiento[0] = vel_inicial;
-  movimiento[1] = vel_inicial;
   distancia_temp[0] = 0;
-  distancia_temp[1] = 0;
   distancia_temp_d[0] = 0;
-  distancia_temp_d[1] = 0;
   p_controller[0]  = 0;
-  p_controller[1]  = 0;
   d_controller[0]  = 0;
-  d_controller[1]  = 0;
   i_controller[0]  = 0;
-  i_controller[1]  = 0;
   prev_error[0]    = 0;
-  prev_error[1]    = 0;
   flag_back = sentido;
   flag_mover = true;
 }
@@ -311,6 +337,7 @@ void mover(int distancia, double vlc, int sentido)
 void girar(int grados, int sentido)
 {
   grados_max = grados;
+  sentido_giro = sentido;
   while (grados_max > 180)
   {
     grados_max = grados_max - 180;
@@ -319,23 +346,45 @@ void girar(int grados, int sentido)
     else
       sentido = 1;
   }
+  posicion_rueda = PASO_VOLANTE * int(grados_max/PASO_VOLANTE);
+  if(posicion_rueda > 45)
+  {
+    posicion_rueda = 45;  
+  }
+  else if(posicion_rueda < 15)
+  {
+    posicion_rueda = 15;
+  }
+  
   if (sentido)
   {
-    //analogWrite(PWM2, 210);
-    //analogWrite(PWM1, 30);
+    doblar_volante(posicion_rueda, sentido);
     valor_giro_temp = 0;
     flag_rotacion = 1;
   }
   else
   {
-    //analogWrite(PWM1, 210);
-    //analogWrite(PWM2, 40);
+    doblar_volante(posicion_rueda, sentido);
     valor_giro_temp = 0;
     flag_rotacion = 1;
   }
 
 }
 
+void doblar_volante(int grados, int sentido)
+{    
+  if (!(sentido))
+  {
+    analogWrite(PWM2, 190);
+  }
+  else
+  {
+    analogWrite(PWM2, 60);
+  }
+  grados_volante_max = grados;
+  flag_girar = true;
+  
+}
 /*******************************************************************************************************************************************************
  * Arma la trama con el dato a enviar y lo envía por la UART. La trama contiene un encabezado, la longitud del dato high y low, el identificador del ***
  * objeto que requirió el dato, la dirección desde la cual se envía el dato, el DATO y un fin de trama *************************************************
@@ -414,7 +463,7 @@ void receive_uart()
   else if ( (SerRx == 64) && ( flag_uart == (5 + data_len_rx) ) ) //termina la recepción de la trama
   {
     flag_uart = 0;
-    flag_accion = 1; //Ejecutamos la accion en el loop principal
+    flag_accion = true; //Ejecutamos la accion en el loop principal
   }
   else flag_uart = 0;
 
@@ -422,16 +471,45 @@ void receive_uart()
 
 void ISR_Timer()
 {
-  //if ( ( fabs(valor_giro_temp) < grados_max) && (flag_rotacion == true) )
-  if (flag_rotacion) 
-    {
-      analogWrite(PWM1, 127);
+  if((distancia_temp[1] >= grados_volante_max) && (flag_girar == true))
+  {
       analogWrite(PWM2, 127);
+      flag_girar = false;
+      distancia_temp[1] = 0;
+    
+  }
+  if ((fabs(valor_giro_temp) < grados_max) && (flag_rotacion == true))
+    {
+      float grados_temp = 0;
+      int prox_posicion_rueda = 0;
+      int posicion_rueda_dif = 0;
+      
+      grados_temp = grados_max - fabs(valor_giro_temp);
+      prox_posicion_rueda = PASO_VOLANTE * int(grados_temp/PASO_VOLANTE);
+      if(prox_posicion_rueda > 45)
+      {
+        prox_posicion_rueda = 45;  
+      }
+      else if(prox_posicion_rueda < 15)
+      {
+        prox_posicion_rueda = 15;
+      }
+
+      posicion_rueda_dif = posicion_rueda - prox_posicion_rueda;
+      if(posicion_rueda_dif > 0)
+      {
+        doblar_volante(posicion_rueda_dif, !sentido_giro);
+        posicion_rueda = prox_posicion_rueda;
+      }
+      
+    }
+    else
+    {
+      doblar_volante(posicion_rueda, !sentido_giro);
       flag_rotacion = false;
-      send_uart("0 !", respuestaid_plan);
       valor_giro_temp = 0;
     }
-
+  
   contador_pid = (contador_pid + 1) % CONTROL_PERIOD;
   if((contador_pid == 1) && flag_mover)
     flag_cntrl_vel = true;
@@ -439,7 +517,6 @@ void ISR_Timer()
   if ( (( distancia_temp[0] > distancia_max) || flag_alarm) && (flag_mover == true) )
     {
       analogWrite(PWM1, 127);
-      analogWrite(PWM2, 127);
       flag_mover = false;
       flag_cntrl_vel = false;
 
@@ -477,17 +554,17 @@ void ISR_Timer()
 }
 
 //Esta es la distancia instantanea pero se suman las dos juntas. Para poder controlar las velocidades de los motores individualmente hay que hacerlo por separado.
-void ISR_INTE0()//PIN2 Motor derecho
+void ISR_INTE0()//PIN2 Motor Principal
 {
   if (flag_mover)
     distancia_temp[0] = distancia_temp[0] + DIST_PULS;
   //Serial.println(distancia_temp[0]);
 }
 
-void ISR_INTE1()//PIN3 Motor Izquierdo
+void ISR_INTE1()//PIN3 Motor Volante
 {
-  if (flag_mover)
-    distancia_temp[1] = distancia_temp[1] + DIST_PULS;
+  if (flag_girar)
+    distancia_temp[1] = distancia_temp[1] + PASO_VOLANTE;
   //Serial.println(distancia_temp[1]);
 }
 
