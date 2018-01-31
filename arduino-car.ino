@@ -1,8 +1,7 @@
-#include <Servo.h>
 #include <TimerOne.h>
 #include <Wire.h>
 
-#include "/home/maxiarmesto/arduino-car/Librerias/MPU6050.h"
+#include "/home/leo/Documentos/Carrito Software/arduino-car/Librerias/MPU6050.h"
 
 /********************************
  *        Constantes            *
@@ -12,26 +11,19 @@ const int   PWM2           =    9;//Motor Volante
 const int   PWM1           =   10;//Motor Principal
 const int   INTE0          =    2;
 const int   INTE1          =    3;
-const float PPV            = 24.0;
-const int   TIME_SAMPLE    =   50;
-const int   CONTROL_PERIOD =   20;
-const float DELTA_T        = (TIME_SAMPLE * CONTROL_PERIOD)/1000.0;
+const float PPV            = 36.0;
+const long   TIME_SAMPLE    =   50000;
+const int   CONTROL_PERIOD =     10;
+const float DELTA_T        = (TIME_SAMPLE * CONTROL_PERIOD)/(1000.0*1000.0);
 
-const int   ULTR_PERIOD    =    4;
-const int   ULTR_N_STEPS   =    8;
-const int   ULTR_TRIGER    =   35;
-const int   ULTR_ECHO      =   19;
-const int   ULTR_INT       =    0;
-const int   ULTR_SERVO     =   44;
-const float ALARM_DISTANCE = 30.0; 
-
-const int   BAUD_RATE   = 9600;
-const int   MICRO_ADDR  =   10; 
-const float LONG_ARC    =  2.0 * 3.14 * 10.0; //longitud de arco de la rueda en cm
-const float DIST_PULS   = LONG_ARC / PPV;
-const int   ROTACION_VOLANTE = 120;
-const int   PULSOS_VOLANTE = 8;
-const float   PASO_VOLANTE   = ROTACION_VOLANTE / PULSOS_VOLANTE;
+const int   BAUD_RATE        = 9600;
+const int   MICRO_ADDR       =   10; 
+const float LONG_ARC         =  2.0 * 3.14 * 10.0; //longitud de arco de la rueda en cm
+const float DIST_PULS        = LONG_ARC / PPV;
+const float ROTACION_VOLANTE =  52.0 ;
+const float GIRO_MAX         = ROTACION_VOLANTE/2;
+const int   PULSOS_VOLANTE   =   9;
+const float PASO_VOLANTE     = ROTACION_VOLANTE / PULSOS_VOLANTE;
 
 /********************************
  *    Variables Globales        *
@@ -45,9 +37,9 @@ boolean flag_timer       = false;
 boolean flag_mover       = false;
 boolean flag_transmision = false;
 boolean flag_accion      = false;
-boolean flag_alarm       = false;
-boolean flag_back        = false;
 boolean flag_cntrl_vel   = false;
+boolean flag_finished    = false;
+boolean toggle           = true;
 
 // Variables de Comunicacion Serie
 
@@ -63,7 +55,6 @@ float datos[7];
 
 int  respuestaid_mpu    =  0;
 int  respuestaid_plan   =  0;
-int  respuestaid_ultr   =  0;
 
 // Variables de movimiento
 
@@ -96,21 +87,10 @@ int grados_max            = 0;
 int grados_volante_max    = 0;
 int posicion_rueda        = 0;
 
-// Variables de Ultrasonido
-
-float ultr_data[ULTR_N_STEPS];
-int   ultr_index         =  0;
-long  ultr_start_time    =  0;
-int contador_ultrasonido =  0;
-
 // Variables Acelerometro
 
 float offset[6]         = {0, 0, 0, 0, 0, 0};
 float Tmp; 
-
-// Clases
-
-Servo ultr_servo;
 
 /********************************
  * Declaración de funciones     *
@@ -122,7 +102,7 @@ Servo ultr_servo;
  * @param Cadena de caracteres a enviar. Debe finalizar con el caracter "!" 
  * @param Id del objeto que va a recibir los datos
  */
-void send_uart(const char*, int);
+void send_uart(char*, int);
 
 /**                                                                                                                                                                  
  * @name receive_uart
@@ -149,7 +129,7 @@ void doblar_volante(int, int);
 /**                                                                                                                                                                  
  * @name mover Warning: Podríamos cambiarle el nombre
  * @brief Traslacion del vehiculo a cierta distancia, velocidad y sentido.
- * @param type: int. Distancia a recorrer en centimetros.
+ * @param type: int. Distancia a regrados_maxcorrer en centimetros.
  * @param type: double. Velocidad en metros por segundo.
  * @param type: int. Sentido en el que se va a desplazar. 1: Hacia adelante 0: Hacia atras.
  */
@@ -178,32 +158,26 @@ void girar(int, int);
 void setup()
 {
   TCCR2B = TCCR2B & 0b11111000 | 0x01;   // Establece frecuencia pwm pines 9,10 a 31K
-  Timer1.initialize(double(TIME_SAMPLE*1000.0)); // WARNING: Depende de la versión del compilador  // Dispara cada TIME_SAMPLE ms
-  Timer1.attachInterrupt(ISR_Timer);     // Activa la interrupcion y la asocia a ISR_Blink
-  
+  Timer1.initialize(double(TIME_SAMPLE)); // WARNING: Depende de la versión del compilador  // Dispara cada TIME_SAMPLE ms
+  Timer1.attachInterrupt(ISR_Timer);     // Activa la interrupcion y la asocia a ISR_Timer
   Serial.begin(BAUD_RATE);               // Inicio la transmision serie
-  Serial2.begin(BAUD_RATE, SERIAL_8N1);
+  //Serial2.begin(BAUD_RATE, SERIAL_8N1);
   
   analogWrite(PWM1, 127);                // PWM1 50% duty
   analogWrite(PWM2, 127);                // PWM2 50% duty
   
   attachInterrupt(digitalPinToInterrupt(INTE0), ISR_INTE0,    CHANGE); // Interrupcion externa en pin 2 por cambio de nivel
   attachInterrupt(digitalPinToInterrupt(INTE1), ISR_INTE1,    CHANGE); // Interrupción externa en pin 3 por cambio de nivel
-  attachInterrupt(digitalPinToInterrupt(ULTR_ECHO),ISR_ECHO_INT, CHANGE); 
-
-  pinMode(ULTR_TRIGER,OUTPUT);
-  digitalWrite(ULTR_TRIGER,LOW);
-  
-  ultr_servo.attach(ULTR_SERVO);         // Aviso al programa que el servo estara en el pin 9
-  ultr_servo.write(10);                  // Set servo to mid-point
-
-  for(int i = 0; i < ULTR_N_STEPS; i++)
-    ultr_data[i] = 0.0;
   
   init_MPU6050();
   calibrar_MPU6050(offset);
-  obtener_datos(datos, offset);
   
+  obtener_datos(datos, offset);
+
+  centrar_volante();
+  delay (5000);
+  girar(20, 1);
+  mover(100, 0.3, toggle);
 }
 
 /**                                                                                                                                                                  
@@ -213,6 +187,13 @@ void setup()
  */
 void loop()
 {
+  if (flag_finished)
+  {
+    toggle = !toggle;
+    girar(20, 1);
+    mover(100, 0.3, toggle);
+    flag_finished = false;
+  }
 
   if ((data_rec[1] == 'd') && (flag_accion))
   {
@@ -241,20 +222,6 @@ void loop()
     flag_accion = false;
   }
 
-  if ((data_rec[1] == 'i') && (flag_accion))
-  {
-    respuestaid_ultr = data_rec[0];
-    for(int i = 0; i < ULTR_N_STEPS; i++)
-    {
-      if(ultr_data[i] > 300)
-        ultr_data[i] = 300.0;
-      dtostrf(ultr_data[i],6,2,buff[i]);
-    }
-    sprintf(mystring, "%s %s %s %s %s %s %s %s !", buff[0], buff[1], buff[2], buff[3], buff[4], buff[5], buff[6], buff[7]);
-    send_uart(mystring, respuestaid_ultr);
-    flag_accion = false;
-  }
-
   if ((data_rec[0] == 'h') && (flag_accion))
   {
     respuestaid_mpu = data_rec[0];
@@ -272,27 +239,28 @@ void loop()
   }
 
   // En caso que el vehículo este rotando se obtiene cada 50ms el valor del gyróscopo en el eje Z y lo va acumulando
+  //Serial.print(flag_timer);Serial.print("  ");Serial.println(flag_rotacion);
   if ((flag_timer) && (flag_rotacion))
   {
-    valor_giro_temp = valor_giro_temp + obtener_z_gyro(datos, offset) * (TIME_SAMPLE/1000);
-    flag_timer = false;
+    valor_giro_temp = valor_giro_temp + obtener_z_gyro(datos, offset) * (TIME_SAMPLE/(1000.0*1000.0));
+    //Serial.println(valor_giro_temp);
+   flag_timer = false;
   }
 
   if (flag_cntrl_vel && flag_mover)
     if (!(sentido_temp))
       {
-        analogWrite(PWM1, 127 + pid_controller(1));
-        flag_cntrl_vel = false;
+         flag_cntrl_vel = false;
+         analogWrite(PWM1, 127 + pid_controller(0));
       }
     else
       {
-        analogWrite(PWM1, 127 - pid_controller(1));
         flag_cntrl_vel = false;
+        analogWrite(PWM1, 127 - pid_controller(0));
       }
 
-  if (Serial2.available() > 0)
+  if (Serial.available() > 0)
     receive_uart();
-
 }
 
 /************************************************************************************************************************************
@@ -300,10 +268,10 @@ void loop()
 /************************************************************************************************************************************/
 void centrar_volante()
 {
-  analogWrite(PWM2, 210);
-  delay(2);
+  analogWrite(PWM2, 30);
+  delay(4000);
   analogWrite(PWM2, 127);
-  doblar_volante(45, 1);
+  doblar_volante(GIRO_MAX, 0);
 }
 
 void mover(int distancia, double vlc, int sentido)
@@ -327,7 +295,6 @@ void mover(int distancia, double vlc, int sentido)
   d_controller[0]  = 0;
   i_controller[0]  = 0;
   prev_error[0]    = 0;
-  flag_back = sentido;
   flag_mover = true;
 }
 
@@ -346,14 +313,17 @@ void girar(int grados, int sentido)
     else
       sentido = 1;
   }
-  posicion_rueda = PASO_VOLANTE * int(grados_max/PASO_VOLANTE);
-  if(posicion_rueda > 45)
+
+  posicion_rueda = GIRO_MAX;//PASO_VOLANTE * int(grados_max/PASO_VOLANTE);
+
+  if(posicion_rueda > GIRO_MAX)
   {
-    posicion_rueda = 45;  
+    posicion_rueda = GIRO_MAX;  
   }
-  else if(posicion_rueda < 15)
+  else if(posicion_rueda < PASO_VOLANTE)
   {
-    posicion_rueda = 15;
+    posicion_rueda = GIRO_MAX;
+    //posicion_rueda = PASO_VOLANTE;
   }
   
   if (sentido)
@@ -375,12 +345,13 @@ void doblar_volante(int grados, int sentido)
 {    
   if (!(sentido))
   {
-    analogWrite(PWM2, 190);
+    analogWrite(PWM2, 230);
   }
   else
   {
-    analogWrite(PWM2, 60);
+    analogWrite(PWM2, 30);
   }
+  distancia_temp[1] = 0;
   grados_volante_max = grados;
   flag_girar = true;
   
@@ -425,12 +396,12 @@ void send_uart(char* data_send, int respuestaid)
   formlist[5 + data_len] = mod_iheader;
 
   for (int i = 0 ; i < data_len + 6; i++)
-    Serial2.write(formlist[i]);
+    Serial.write(formlist[i]);
 }
 
 void receive_uart()
 {
-  SerRx = Serial2.read();
+  SerRx = Serial.read();
   if ( ( flag_uart == 0 ) && ( (SerRx & 0xE0) == 160) ) //Encontramos el MIT
   {
     flag_uart++;
@@ -473,11 +444,11 @@ void ISR_Timer()
 {
   if((distancia_temp[1] >= grados_volante_max) && (flag_girar == true))
   {
-      analogWrite(PWM2, 127);
-      flag_girar = false;
-      distancia_temp[1] = 0;
-    
+    analogWrite(PWM2, 127);
+    flag_girar = false;
+    distancia_temp[1] = 0;
   }
+
   if ((fabs(valor_giro_temp) < grados_max) && (flag_rotacion == true))
     {
       float grados_temp = 0;
@@ -485,25 +456,32 @@ void ISR_Timer()
       int posicion_rueda_dif = 0;
       
       grados_temp = grados_max - fabs(valor_giro_temp);
-      prox_posicion_rueda = PASO_VOLANTE * int(grados_temp/PASO_VOLANTE);
-      if(prox_posicion_rueda > 45)
-      {
-        prox_posicion_rueda = 45;  
-      }
-      else if(prox_posicion_rueda < 15)
-      {
-        prox_posicion_rueda = 15;
-      }
-
+      prox_posicion_rueda = GIRO_MAX;
+      //prox_posicion_rueda = PASO_VOLANTE * int(grados_temp/PASO_VOLANTE);
+      //if(prox_posicion_rueda > GIRO_MAX)
+      //{
+      //  prox_posicion_rueda = GIRO_MAX;  
+      //}
+      //else if(prox_posicion_rueda < PASO_VOLANTE)
+      //{
+      //  prox_posicion_rueda = PASO_VOLANTE;
+      //}
+      
       posicion_rueda_dif = posicion_rueda - prox_posicion_rueda;
       if(posicion_rueda_dif > 0)
       {
         doblar_volante(posicion_rueda_dif, !sentido_giro);
         posicion_rueda = prox_posicion_rueda;
       }
+
+      //Serial.print("Grados Temp: ");Serial.println(valor_giro_temp);
+      //Serial.print("Grados Resta: ");Serial.println(grados_temp);
+      //Serial.print("Posicion Rueda: ");Serial.println(posicion_rueda);
+      //Serial.print("Prox Posicion Rueda: ");Serial.println(prox_posicion_rueda);
+      
       
     }
-    else
+    else if (flag_rotacion == true)
     {
       doblar_volante(posicion_rueda, !sentido_giro);
       flag_rotacion = false;
@@ -514,40 +492,15 @@ void ISR_Timer()
   if((contador_pid == 1) && flag_mover)
     flag_cntrl_vel = true;
 
-  if ( (( distancia_temp[0] > distancia_max) || flag_alarm) && (flag_mover == true) )
+  if ( (( distancia_temp[0] > distancia_max) ) && (flag_mover == true) )
     {
+      flag_finished = true;
       analogWrite(PWM1, 127);
       flag_mover = false;
-      flag_cntrl_vel = false;
-
-    if(!(flag_back))
-      if(flag_alarm)
-      {
-        flag_alarm = false;
-        Serial.print("DISTANCIA TEMP: ");Serial.println(distancia_temp[0]);
-        mover(distancia_temp[0],1.0,1);
-      }
-      else
-      {
-        send_uart("0 !", respuestaid_plan);
-      }
-      else
-        send_uart("1 !", respuestaid_plan);            
-  
+      flag_cntrl_vel = false;  
+      send_uart("0 !", respuestaid_plan);
       distancia_temp[0] = 0;
 
-    }
-
-    contador_ultrasonido = (contador_ultrasonido+1) % ULTR_PERIOD;
-    if ( contador_ultrasonido == 1)
-    {
-      //Serial.print(distancia_temp); Serial.print(" "); Serial.print(distancia_max);Serial.print(" ");Serial.println(DIST_PULS);
-       //Serial.print("Servo move: ");Serial.println(ultr_index*15+37.5);
-       ultr_servo.write(ultr_index*15+37.5);
-       digitalWrite(ULTR_TRIGER,HIGH); //se envia el pulso ultrasonico
-       delayMicroseconds(20);//El pulso debe tener una duracion minima de 10 microsegundos
-       digitalWrite(ULTR_TRIGER,LOW); //Ambas lineas son por estabilizacion del sensor
-       
     }
 
   flag_timer = true;
@@ -558,30 +511,13 @@ void ISR_INTE0()//PIN2 Motor Principal
 {
   if (flag_mover)
     distancia_temp[0] = distancia_temp[0] + DIST_PULS;
-  //Serial.println(distancia_temp[0]);
 }
 
 void ISR_INTE1()//PIN3 Motor Volante
 {
   if (flag_girar)
     distancia_temp[1] = distancia_temp[1] + PASO_VOLANTE;
-  //Serial.println(distancia_temp[1]);
-}
-
-void ISR_ECHO_INT()
-{
- if(digitalRead(ULTR_ECHO))
- {
-  ultr_start_time = micros();
- }
- else
- {
-    ultr_data[ultr_index] = (micros()-ultr_start_time)/58;
-    if ((flag_mover) && (!flag_back) && (ultr_data[ultr_index] < ALARM_DISTANCE))
-      flag_alarm = true;
-    ultr_index = (ultr_index+1)%ULTR_N_STEPS;
-    Serial.print(ultr_index);Serial.print(" ");Serial.println(ultr_data[ultr_index]);
- }
+  Serial.println(distancia_temp[1]);
 }
 
 //Control PID para la velocidad de los motores, es necesario calibrar los parametros.
@@ -597,14 +533,6 @@ double pid_controller(int motor)
 
   velocidad_temp = ((distancia_temp[motor] - distancia_temp_d[motor])*0.01)/DELTA_T;
   error = velocidad_ref - velocidad_temp;
-  if(motor == 0)
-  {
-    Serial.print(velocidad_temp);Serial.print(" ");
-  }
-  else
-  {
-    Serial.println(velocidad_temp);
-  } 
   distancia_temp_d[motor] = distancia_temp[motor];
 
   p_controller[motor]  = kp * error;
@@ -612,12 +540,10 @@ double pid_controller(int motor)
   d_controller[motor]  = (kd * (error - prev_error[motor])) / DELTA_T;
   prev_error[motor]    = error;
   pid_contr      = p_controller[motor] + i_controller[motor] + d_controller[motor];
+  //pid_contr      = p_controller[motor];
   movimiento[motor]    += pid_contr;
-  if(movimiento[motor] > 88.0)
-    {
-      movimiento[motor] = 88.0;
-    }
-  //Serial.println(movimiento[motor]);
+  if(movimiento[motor] > 110.0)
+      movimiento[motor] = 110.0;
    
   return movimiento[motor];
 }
