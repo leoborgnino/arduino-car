@@ -1,7 +1,7 @@
-#include <TimerOne.h>
+#include "/home/maxiarmesto/arduino-car/Librerias/TimerOne.h"
 #include <Wire.h>
 
-#include "/home/leo/Documentos/Carrito Software/arduino-car/Librerias/MPU6050.h"
+#include "/home/maxiarmesto/arduino-car/Librerias/MPU6050.h"
 
 /********************************
  *        Constantes            *
@@ -31,15 +31,17 @@ const float PASO_VOLANTE     = ROTACION_VOLANTE / PULSOS_VOLANTE;
 
 // Banderas
 
-boolean flag_rotacion    = false;
-boolean flag_girar       = false;
-boolean flag_timer       = false;
-boolean flag_mover       = false;
-boolean flag_transmision = false;
-boolean flag_accion      = false;
-boolean flag_cntrl_vel   = false;
-boolean flag_finished    = false;
-boolean toggle           = true;
+boolean flag_rotacion       = false;
+boolean flag_girar          = false;
+boolean flag_timer          = false;
+boolean flag_mover          = false;
+boolean flag_transmision    = false;
+boolean flag_accion         = false;
+boolean flag_cntrl_vel      = false;
+boolean flag_finished       = false;
+boolean rotacion_incompleta = false;
+boolean flag_terminar_giro  = false;
+boolean toggle              = true;
 
 // Variables de Comunicacion Serie
 
@@ -73,6 +75,7 @@ double kp                 = 20.0;
 
 
 float valor_giro_temp     = 0;
+float grados_por_rotar    = 0;
 float aceleracion_old     = 0;
 float velocidad           = 0;
 float velocidad_old       = 0;
@@ -129,7 +132,7 @@ void doblar_volante(int, int);
 /**                                                                                                                                                                  
  * @name mover Warning: Podríamos cambiarle el nombre
  * @brief Traslacion del vehiculo a cierta distancia, velocidad y sentido.
- * @param type: int. Distancia a regrados_maxcorrer en centimetros.
+ * @param type: int. Distancia a recorrer en centimetros.
  * @param type: double. Velocidad en metros por segundo.
  * @param type: int. Sentido en el que se va a desplazar. 1: Hacia adelante 0: Hacia atras.
  */
@@ -238,6 +241,14 @@ void loop()
     flag_accion = false;
   }
 
+  if(flag_terminar_giro)
+  {
+    mover(20, 0.3, 0);
+    girar(grados_por_rotar, sentido_giro);
+    mover(20, 0.3, 1);
+    flag_terminar_giro = false;
+  }
+
   // En caso que el vehículo este rotando se obtiene cada 50ms el valor del gyróscopo en el eje Z y lo va acumulando
   //Serial.print(flag_timer);Serial.print("  ");Serial.println(flag_rotacion);
   if ((flag_timer) && (flag_rotacion))
@@ -316,27 +327,30 @@ void girar(int grados, int sentido)
 
   posicion_rueda = GIRO_MAX;//PASO_VOLANTE * int(grados_max/PASO_VOLANTE);
 
-  if(posicion_rueda > GIRO_MAX)
-  {
-    posicion_rueda = GIRO_MAX;  
-  }
-  else if(posicion_rueda < PASO_VOLANTE)
-  {
-    posicion_rueda = GIRO_MAX;
+  //if(posicion_rueda > GIRO_MAX)
+  //{
+  //  posicion_rueda = GIRO_MAX;  
+  //}
+  //else if(posicion_rueda < PASO_VOLANTE)
+  //{
+  //  posicion_rueda = GIRO_MAX;
     //posicion_rueda = PASO_VOLANTE;
-  }
-  
-  if (sentido)
+  //}
+
+  if(grados_max != 0)
   {
-    doblar_volante(posicion_rueda, sentido);
-    valor_giro_temp = 0;
-    flag_rotacion = 1;
-  }
-  else
-  {
-    doblar_volante(posicion_rueda, sentido);
-    valor_giro_temp = 0;
-    flag_rotacion = 1;
+    if (sentido)
+    {
+      doblar_volante(posicion_rueda, sentido);
+      valor_giro_temp = 0;
+      flag_rotacion = 1;
+    }
+    else
+    {
+      doblar_volante(posicion_rueda, sentido);
+      valor_giro_temp = 0;
+      flag_rotacion = 1;
+    }
   }
 
 }
@@ -498,11 +512,29 @@ void ISR_Timer()
       analogWrite(PWM1, 127);
       flag_mover = false;
       flag_cntrl_vel = false;  
-      send_uart("0 !", respuestaid_plan);
+      
+      if(flag_rotacion == true)
+      {
+        rotacion_incompleta = true;  
+      }
+      else
+      {
+        send_uart("0 !", respuestaid_plan);
+      }
+      
       distancia_temp[0] = 0;
 
     }
 
+  if(rotacion_incompleta == true)
+  {
+    doblar_volante(posicion_rueda, !sentido_giro);
+    grados_por_rotar = grados_max - fabs(valor_giro_temp);
+    flag_terminar_giro = true;
+    flag_rotacion = false;
+    valor_giro_temp = 0;
+    rotacion_incompleta = false;
+  }
   flag_timer = true;
 }
 
