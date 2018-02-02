@@ -1,7 +1,7 @@
-#include "/home/maxiarmesto/arduino-car/Librerias/TimerOne.h"
+#include "TimerOne.h"
 #include <Wire.h>
 
-#include "/home/maxiarmesto/arduino-car/Librerias/MPU6050.h"
+#include "MPU6050.h"
 
 /********************************
  *        Constantes            *
@@ -40,6 +40,8 @@ boolean flag_accion         = false;
 boolean flag_cntrl_vel      = false;
 boolean flag_finished       = false;
 boolean rotacion_incompleta = false;
+boolean flag_terminar_movimiento = false;
+boolean flag_back = false;
 boolean flag_terminar_giro  = false;
 boolean toggle              = true;
 
@@ -64,7 +66,7 @@ float distancia_temp[2]   = {0.0, 0.0};
 float distancia_temp_d[2] = {0.0, 0.0};
 float movimiento[2]       = {0.0, 0.0};
 float velocidad_ref       = 3.0; // Velocidad crucero en m/s
-float vel_inicial         = 50.0;
+float vel_inicial         = 35.0;
 float p_controller[2]     = {0.0, 0.0};
 float d_controller[2]     = {0.0, 0.0};
 float i_controller[2]     = {0.0, 0.0};
@@ -179,8 +181,8 @@ void setup()
 
   centrar_volante();
   delay (5000);
-  girar(20, 1);
-  mover(100, 0.3, toggle);
+  girar(60, 0);
+  mover(80, 0.3, toggle);
 }
 
 /**                                                                                                                                                                  
@@ -190,13 +192,13 @@ void setup()
  */
 void loop()
 {
-  if (flag_finished)
-  {
-    toggle = !toggle;
-    girar(20, 1);
-    mover(100, 0.3, toggle);
-    flag_finished = false;
-  }
+//  if (flag_finished)
+//  {
+//    toggle = !toggle;
+//    girar(20, 1);
+//    mover(100, 0.3, toggle);
+//    flag_finished = false;
+//  }
 
   if ((data_rec[1] == 'd') && (flag_accion))
   {
@@ -243,31 +245,39 @@ void loop()
 
   if(flag_terminar_giro)
   {
-    mover(20, 0.3, 0);
-    girar(grados_por_rotar, sentido_giro);
-    mover(20, 0.3, 1);
+    mover(40, 0.3, 0);
     flag_terminar_giro = false;
+    flag_back = true;
+    valor_giro_temp = 0;
+  }
+
+  if (flag_terminar_movimiento)
+  {
+    Serial.print("Grados por rotar:");Serial.println(grados_por_rotar - fabs(valor_giro_temp));
+    girar(int(grados_por_rotar - fabs(valor_giro_temp)), sentido_giro);
+    mover(40, 0.3, 1);
+    flag_terminar_movimiento = false;
   }
 
   // En caso que el vehículo este rotando se obtiene cada 50ms el valor del gyróscopo en el eje Z y lo va acumulando
   //Serial.print(flag_timer);Serial.print("  ");Serial.println(flag_rotacion);
-  if ((flag_timer) && (flag_rotacion))
+  if (((flag_timer) && (flag_rotacion)) || ((flag_back) && (flag_timer)))
   {
     valor_giro_temp = valor_giro_temp + obtener_z_gyro(datos, offset) * (TIME_SAMPLE/(1000.0*1000.0));
     //Serial.println(valor_giro_temp);
-   flag_timer = false;
+    flag_timer = false;
   }
 
   if (flag_cntrl_vel && flag_mover)
     if (!(sentido_temp))
       {
          flag_cntrl_vel = false;
-         analogWrite(PWM1, 127 + pid_controller(0));
+         analogWrite(PWM1, 127 + vel_inicial + pid_controller(0));
       }
     else
       {
         flag_cntrl_vel = false;
-        analogWrite(PWM1, 127 - pid_controller(0));
+        analogWrite(PWM1, 127 - vel_inicial - pid_controller(0));
       }
 
   if (Serial.available() > 0)
@@ -497,7 +507,9 @@ void ISR_Timer()
     }
     else if (flag_rotacion == true)
     {
-      doblar_volante(posicion_rueda, !sentido_giro);
+      doblar_volante(GIRO_MAX-PASO_VOLANTE, !sentido_giro);
+      //doblar_volante(posicion_rueda, !sentido_giro);
+      //centrar_volante();
       flag_rotacion = false;
       valor_giro_temp = 0;
     }
@@ -512,15 +524,17 @@ void ISR_Timer()
       analogWrite(PWM1, 127);
       flag_mover = false;
       flag_cntrl_vel = false;  
-      
-      if(flag_rotacion == true)
+    
+      if (flag_back == true)
       {
-        rotacion_incompleta = true;  
+        flag_terminar_movimiento = true;
+        flag_back = false;
       }
-      else
-      {
-        send_uart("0 !", respuestaid_plan);
-      }
+    
+     if(flag_rotacion == true)
+       rotacion_incompleta = true;  
+     else
+       send_uart("0 !", respuestaid_plan);
       
       distancia_temp[0] = 0;
 
@@ -528,7 +542,9 @@ void ISR_Timer()
 
   if(rotacion_incompleta == true)
   {
-    doblar_volante(posicion_rueda, !sentido_giro);
+    doblar_volante(GIRO_MAX-PASO_VOLANTE, !sentido_giro);
+    //doblar_volante(posicion_rueda, !sentido_giro);
+    //centrar_volante();
     grados_por_rotar = grados_max - fabs(valor_giro_temp);
     flag_terminar_giro = true;
     flag_rotacion = false;
@@ -549,7 +565,7 @@ void ISR_INTE1()//PIN3 Motor Volante
 {
   if (flag_girar)
     distancia_temp[1] = distancia_temp[1] + PASO_VOLANTE;
-  Serial.println(distancia_temp[1]);
+  //Serial.println(distancia_temp[1]);
 }
 
 //Control PID para la velocidad de los motores, es necesario calibrar los parametros.
