@@ -12,7 +12,7 @@ const int   PWM1           =   10;//Motor Principal
 const int   INTE0          =    2;
 const int   INTE1          =    3;
 const float PPV            = 36.0;
-const long   TIME_SAMPLE    =   50000;
+const long  TIME_SAMPLE    =   50000;
 const int   CONTROL_PERIOD =     10;
 const float DELTA_T        = (TIME_SAMPLE * CONTROL_PERIOD)/(1000.0*1000.0);
 
@@ -22,6 +22,7 @@ const float LONG_ARC         =  2.0 * 3.14 * 10.0; //longitud de arco de la rued
 const float DIST_PULS        = LONG_ARC / PPV;
 const float ROTACION_VOLANTE =  52.0 ;
 const float GIRO_MAX         = ROTACION_VOLANTE/2;
+const float GIRO_MOV         = PASO_VOLANTE * 4;
 const int   PULSOS_VOLANTE   =   9;
 const float PASO_VOLANTE     = ROTACION_VOLANTE / PULSOS_VOLANTE;
 
@@ -335,32 +336,11 @@ void girar(int grados, int sentido)
       sentido = 1;
   }
 
-  posicion_rueda = GIRO_MAX;//PASO_VOLANTE * int(grados_max/PASO_VOLANTE);
-
-  //if(posicion_rueda > GIRO_MAX)
-  //{
-  //  posicion_rueda = GIRO_MAX;  
-  //}
-  //else if(posicion_rueda < PASO_VOLANTE)
-  //{
-  //  posicion_rueda = GIRO_MAX;
-    //posicion_rueda = PASO_VOLANTE;
-  //}
-
   if(grados_max != 0)
   {
-    if (sentido)
-    {
-      doblar_volante(posicion_rueda, sentido);
-      valor_giro_temp = 0;
-      flag_rotacion = 1;
-    }
-    else
-    {
-      doblar_volante(posicion_rueda, sentido);
-      valor_giro_temp = 0;
-      flag_rotacion = 1;
-    }
+    doblar_volante(GIRO_MOV, sentido);
+    valor_giro_temp = 0;
+    flag_rotacion = 1;
   }
 
 }
@@ -380,6 +360,7 @@ void doblar_volante(int grados, int sentido)
   flag_girar = true;
   
 }
+
 /*******************************************************************************************************************************************************
  * Arma la trama con el dato a enviar y lo envía por la UART. La trama contiene un encabezado, la longitud del dato high y low, el identificador del ***
  * objeto que requirió el dato, la dirección desde la cual se envía el dato, el DATO y un fin de trama *************************************************
@@ -473,47 +454,13 @@ void ISR_Timer()
     distancia_temp[1] = 0;
   }
 
-  if ((fabs(valor_giro_temp) < grados_max) && (flag_rotacion == true))
+  if ((fabs(valor_giro_temp) > grados_max) && (flag_rotacion == true))
     {
-      float grados_temp = 0;
-      int prox_posicion_rueda = 0;
-      int posicion_rueda_dif = 0;
-      
-      grados_temp = grados_max - fabs(valor_giro_temp);
-      prox_posicion_rueda = GIRO_MAX;
-      //prox_posicion_rueda = PASO_VOLANTE * int(grados_temp/PASO_VOLANTE);
-      //if(prox_posicion_rueda > GIRO_MAX)
-      //{
-      //  prox_posicion_rueda = GIRO_MAX;  
-      //}
-      //else if(prox_posicion_rueda < PASO_VOLANTE)
-      //{
-      //  prox_posicion_rueda = PASO_VOLANTE;
-      //}
-      
-      posicion_rueda_dif = posicion_rueda - prox_posicion_rueda;
-      if(posicion_rueda_dif > 0)
-      {
-        doblar_volante(posicion_rueda_dif, !sentido_giro);
-        posicion_rueda = prox_posicion_rueda;
-      }
-
-      //Serial.print("Grados Temp: ");Serial.println(valor_giro_temp);
-      //Serial.print("Grados Resta: ");Serial.println(grados_temp);
-      //Serial.print("Posicion Rueda: ");Serial.println(posicion_rueda);
-      //Serial.print("Prox Posicion Rueda: ");Serial.println(prox_posicion_rueda);
-      
-      
-    }
-    else if (flag_rotacion == true)
-    {
-      doblar_volante(GIRO_MAX-PASO_VOLANTE, !sentido_giro);
-      //doblar_volante(posicion_rueda, !sentido_giro);
-      //centrar_volante();
+      doblar_volante(GIRO_MOV, !sentido_giro);
       flag_rotacion = false;
       valor_giro_temp = 0;
     }
-  
+    
   contador_pid = (contador_pid + 1) % CONTROL_PERIOD;
   if((contador_pid == 1) && flag_mover)
     flag_cntrl_vel = true;
@@ -531,10 +478,10 @@ void ISR_Timer()
         flag_back = false;
       }
     
-     if(flag_rotacion == true)
-       rotacion_incompleta = true;  
-     else
-       send_uart("0 !", respuestaid_plan);
+      if(flag_rotacion == true)
+        rotacion_incompleta = true;  
+      else
+        send_uart("0 !", respuestaid_plan);
       
       distancia_temp[0] = 0;
 
@@ -542,9 +489,7 @@ void ISR_Timer()
 
   if(rotacion_incompleta == true)
   {
-    doblar_volante(GIRO_MAX-PASO_VOLANTE, !sentido_giro);
-    //doblar_volante(posicion_rueda, !sentido_giro);
-    //centrar_volante();
+    doblar_volante(GIRO_MOV, !sentido_giro);
     grados_por_rotar = grados_max - fabs(valor_giro_temp);
     flag_terminar_giro = true;
     flag_rotacion = false;
