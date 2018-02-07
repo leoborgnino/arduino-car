@@ -22,9 +22,10 @@ const float LONG_ARC         =  2.0 * 3.14 * 10.0; //longitud de arco de la rued
 const float DIST_PULS        = LONG_ARC / PPV;
 const float ROTACION_VOLANTE =  52.0 ;
 const float GIRO_MAX         = ROTACION_VOLANTE/2;
-const float GIRO_MOV         = PASO_VOLANTE * 4;
 const int   PULSOS_VOLANTE   =   9;
 const float PASO_VOLANTE     = ROTACION_VOLANTE / PULSOS_VOLANTE;
+const float GIRO_MOV         = PASO_VOLANTE * 4;
+const float GIRO_LIMITE      = 40;
 
 /********************************
  *    Variables Globales        *
@@ -181,9 +182,9 @@ void setup()
   obtener_datos(datos, offset);
 
   centrar_volante();
-  delay (5000);
-  girar(60, 0);
-  mover(80, 0.3, toggle);
+  //delay (5000);
+  //girar(60, 1);
+  //mover(80, 0.3, toggle);
 }
 
 /**                                                                                                                                                                  
@@ -193,13 +194,13 @@ void setup()
  */
 void loop()
 {
-//  if (flag_finished)
-//  {
-//    toggle = !toggle;
-//    girar(20, 1);
-//    mover(100, 0.3, toggle);
-//    flag_finished = false;
-//  }
+ //if (flag_finished)
+ // {
+ //   toggle = !toggle;
+ //   girar(20, 1);
+ //   mover(80, 0.3, toggle);
+ //   flag_finished = false;
+ // }
 
   if ((data_rec[1] == 'd') && (flag_accion))
   {
@@ -237,10 +238,11 @@ void loop()
 
   if ((data_rec[1] == 'k') && (flag_accion))
   {
-    centrar_volante();
+    if (data_rec[5] < 1)
+      data_rec[5] = 0;
     respuestaid_plan = data_rec[0];
     girar(data_rec[5], data_rec[6]);
-    mover(data_rec[2], data_rec[3], data_rec[4]);
+    mover(data_rec[2],data_rec[3]/100.0, data_rec[4]);
     flag_accion = false;
   }
 
@@ -293,7 +295,7 @@ void centrar_volante()
   analogWrite(PWM2, 30);
   delay(4000);
   analogWrite(PWM2, 127);
-  doblar_volante(GIRO_MAX, 0);
+  doblar_volante(GIRO_MOV, 0);
 }
 
 void mover(int distancia, double vlc, int sentido)
@@ -338,7 +340,7 @@ void girar(int grados, int sentido)
 
   if(grados_max != 0)
   {
-    doblar_volante(GIRO_MOV, sentido);
+    doblar_volante(GIRO_LIMITE, sentido);
     valor_giro_temp = 0;
     flag_rotacion = 1;
   }
@@ -489,6 +491,7 @@ void ISR_Timer()
 
   if(rotacion_incompleta == true)
   {
+    //calibrar_MPU6050(offset);
     doblar_volante(GIRO_MOV, !sentido_giro);
     grados_por_rotar = grados_max - fabs(valor_giro_temp);
     flag_terminar_giro = true;
@@ -510,7 +513,7 @@ void ISR_INTE1()//PIN3 Motor Volante
 {
   if (flag_girar)
     distancia_temp[1] = distancia_temp[1] + PASO_VOLANTE;
-  //Serial.println(distancia_temp[1]);
+  Serial.println(distancia_temp[1]);
 }
 
 //Control PID para la velocidad de los motores, es necesario calibrar los parametros.
