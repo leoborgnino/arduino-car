@@ -26,6 +26,11 @@ const int   PULSOS_VOLANTE   =   9;
 const float PASO_VOLANTE     = ROTACION_VOLANTE / PULSOS_VOLANTE;
 const float GIRO_MOV         = PASO_VOLANTE * 4;
 const float GIRO_LIMITE      = 40;
+const float GIRO_LEVE        = PASO_VOLANTE * 2;
+const float LIMITE_GIRO      = 10;
+const int   LIMITE_DESVIO    = 2;
+const int   VOLANTE_CENTRADO = 4;
+const float RUIDO_ROTACION   = 1;
 
 /********************************
  *    Variables Globales        *
@@ -33,26 +38,27 @@ const float GIRO_LIMITE      = 40;
 
 // Banderas
 
-boolean flag_rotacion       = false;
-boolean flag_girar          = false;
-boolean flag_timer          = false;
-boolean flag_mover          = false;
-boolean flag_transmision    = false;
-boolean flag_accion         = false;
-boolean flag_cntrl_vel      = false;
-boolean flag_finished       = false;
-boolean rotacion_incompleta = false;
+boolean flag_rotacion            = false;
+boolean flag_girar               = false;
+boolean flag_timer               = false;
+boolean flag_mover               = false;
+boolean flag_accion              = false;
+boolean flag_cntrl_vel           = false;
+boolean flag_finished            = false;
+boolean rotacion_incompleta      = false;
 boolean flag_terminar_movimiento = false;
-boolean flag_back = false;
-boolean flag_terminar_giro  = false;
-boolean toggle              = true;
+boolean flag_back                = false;
+boolean flag_terminar_giro       = false;
+boolean flag_giro_leve           = false;
+boolean flag_linea_recta         = false;
+boolean flag_centrar_vehiculo    = false;
+boolean toggle                   = true;
 
 // Variables de Comunicacion Serie
 
 int  flag_uart          =  0;
-int  contador_backup    =  0;
 int  data_len_rx        =  0;
-char  SerRx;
+char SerRx;
 char formlist[150];
 char data_rec[10];
 char mystring[100];
@@ -77,22 +83,23 @@ double kd                 = 1.0;
 double ki                 = 0.20;
 double kp                 = 20.0;
 
-
-float valor_giro_temp     = 0;
-float grados_por_rotar    = 0;
-float aceleracion_old     = 0;
-float velocidad           = 0;
-float velocidad_old       = 0;
-long distancia_max        = 0;
-int sentido_temp          = 0;
-int sentido_giro          = 0;
-int contador_movimiento   = 0;
-int contador_pid          = 0;
-int encoder1              = 0; 
-int encoder2              = 0;
-int grados_max            = 0;
-int grados_volante_max    = 0;
-int posicion_rueda        = 0;
+float valor_giro_temp        = 0;
+float valor_giro_total       = 0;
+float valor_giro_instantaneo = 0;
+float centrar_vehiculo       = 0;
+float giro_z_instantaneo     = 0;
+float grados_por_rotar       = 0;
+float aceleracion_old        = 0;
+float velocidad              = 0;
+float velocidad_old          = 0;
+long distancia_max           = 0;
+int sentido_temp             = 0;
+int sentido_giro             = 0;
+int contador_movimiento      = 0;
+int contador_pid             = 0;
+int grados_max               = 0;
+int grados_volante_max       = 0;
+int posicion_volante         = 0;
 
 // Variables Acelerometro
 
@@ -262,12 +269,25 @@ void loop()
     flag_terminar_movimiento = false;
   }
 
+  if(flag_centrar_vehiculo)
+  {
+    if(centrar_vehiculo > 0)
+      girar(int(fabs(centrar_vehiculo)), 0);
+    else
+      girar(int(fabs(centrar_vehiculo)), 1);
+
+    flag_centrar_vehiculo = false;
+  }
   // En caso que el vehículo este rotando se obtiene cada 50ms el valor del gyróscopo en el eje Z y lo va acumulando
   //Serial.print(flag_timer);Serial.print("  ");Serial.println(flag_rotacion);
-  if (((flag_timer) && (flag_rotacion)) || ((flag_back) && (flag_timer)))
+  if (flag_timer)
   {
-    valor_giro_temp = valor_giro_temp + obtener_z_gyro(datos, offset) * (TIME_SAMPLE/(1000.0*1000.0));
-    //Serial.println(valor_giro_temp);
+    giro_z_instantaneo = obtener_z_gyro(datos, offset) * (TIME_SAMPLE/(1000.0*1000.0));
+    if(flag_rotacion || flag_back)
+      valor_giro_temp = valor_giro_temp + giro_z_instantaneo;
+    if(giro_z_instantaneo > RUIDO_ROTACION)
+      valor_giro_total = valor_giro_total + giro_z_instantaneo;
+    
     flag_timer = false;
   }
 
@@ -296,6 +316,7 @@ void centrar_volante()
   delay(4000);
   analogWrite(PWM2, 127);
   doblar_volante(GIRO_MOV, 0);
+  posicion_volante = VOLANTE_CENTRADO;
 }
 
 void mover(int distancia, double vlc, int sentido)
@@ -338,11 +359,32 @@ void girar(int grados, int sentido)
       sentido = 1;
   }
 
+  if(grados_max < 0)
+  {
+    grados_max = fabs(grados_max)
+    sentido_giro = !sentido;
+  }
+  
   if(grados_max != 0)
   {
-    doblar_volante(GIRO_LIMITE, sentido);
-    valor_giro_temp = 0;
-    flag_rotacion = 1;
+    if(grados_max >= LIMITE_GIRO)
+    {
+      doblar_volante(GIRO_LIMITE, sentido);
+      valor_giro_temp = 0;
+      flag_rotacion = true;
+    }
+    else
+    {
+      doblar_volante(GIRO_LIMITE, sentido);
+      valor_giro_temp = 0;
+      flag_rotacion = true;
+      flag_giro_leve = true;
+    }
+  }
+  else
+  {
+    flag_linea_recta = true;
+    valor_giro_instantaneo = valor_giro_total;
   }
 
 }
@@ -458,11 +500,28 @@ void ISR_Timer()
 
   if ((fabs(valor_giro_temp) > grados_max) && (flag_rotacion == true))
     {
-      doblar_volante(GIRO_MOV, !sentido_giro);
-      flag_rotacion = false;
-      valor_giro_temp = 0;
+      if(flag_giro_leve)
+      {
+        doblar_volante(GIRO_LEVE, !sentido_giro);
+        flag_rotacion = false;
+        flag_giro_leve = false;
+        valor_giro_temp = 0;
+      }
+      else
+      {
+        doblar_volante(GIRO_MOV, !sentido_giro);
+        flag_rotacion = false;
+        valor_giro_temp = 0;
+      }
     }
-    
+
+  if(flag_linea_recta)
+  {
+     centrar_vehiculo = valor_giro_instantaneo - valor_giro_total;
+     if(fabs(centrar_vehiculo) > LIMITE_DESVIO)
+       flag_centrar_vehiculo = true;
+  }
+  
   contador_pid = (contador_pid + 1) % CONTROL_PERIOD;
   if((contador_pid == 1) && flag_mover)
     flag_cntrl_vel = true;
@@ -472,6 +531,7 @@ void ISR_Timer()
       flag_finished = true;
       analogWrite(PWM1, 127);
       flag_mover = false;
+      flag_linea_recta = false;
       flag_cntrl_vel = false;  
     
       if (flag_back == true)
@@ -491,8 +551,15 @@ void ISR_Timer()
 
   if(rotacion_incompleta == true)
   {
-    //calibrar_MPU6050(offset);
-    doblar_volante(GIRO_MOV, !sentido_giro);
+    if(flag_giro_leve)
+    {
+      doblar_volante(GIRO_LEVE, !sentido_giro);
+      flag_giro_leve = false;
+    }
+    else
+    {
+      doblar_volante(GIRO_MOV, !sentido_giro);
+    }
     grados_por_rotar = grados_max - fabs(valor_giro_temp);
     flag_terminar_giro = true;
     flag_rotacion = false;
@@ -512,7 +579,13 @@ void ISR_INTE0()//PIN2 Motor Principal
 void ISR_INTE1()//PIN3 Motor Volante
 {
   if (flag_girar)
+  {
     distancia_temp[1] = distancia_temp[1] + PASO_VOLANTE;
+    if(sentido_giro)
+      posicion_volante++;
+    else
+      posicion_volante--;
+  }
   Serial.println(distancia_temp[1]);
 }
 
