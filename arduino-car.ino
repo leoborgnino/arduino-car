@@ -361,7 +361,7 @@ void girar(int grados, int sentido)
 
   if(grados_max < 0)
   {
-    grados_max = fabs(grados_max)
+    grados_max = fabs(grados_max);
     sentido_giro = !sentido;
   }
   
