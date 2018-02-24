@@ -24,9 +24,9 @@ const float ROTACION_VOLANTE =  52.0 ;
 const float GIRO_MAX         = ROTACION_VOLANTE/2;
 const int   PULSOS_VOLANTE   =   9;
 const float PASO_VOLANTE     = ROTACION_VOLANTE / PULSOS_VOLANTE;
-const float GIRO_MOV         = PASO_VOLANTE * 4;
+const float GIRO_MOV         = PASO_VOLANTE * 5.0;
 const float GIRO_LIMITE      = 40;
-const float GIRO_LEVE        = PASO_VOLANTE * 2;
+const float GIRO_LEVE        = PASO_VOLANTE * 3.0;
 const float LIMITE_GIRO      = 10;
 const int   LIMITE_DESVIO    = 2;
 const int   VOLANTE_CENTRADO = 4;
@@ -271,11 +271,10 @@ void loop()
 
   if(flag_centrar_vehiculo)
   {
-    if(centrar_vehiculo > 0)
-      girar(int(fabs(centrar_vehiculo)), 0);
-    else
-      girar(int(fabs(centrar_vehiculo)), 1);
-
+//    if(centrar_vehiculo > 0)
+//      girar(int(fabs(centrar_vehiculo)), 0);
+//    else
+//      girar(int(fabs(centrar_vehiculo)), 1);
     flag_centrar_vehiculo = false;
   }
   // En caso que el vehículo este rotando se obtiene cada 50ms el valor del gyróscopo en el eje Z y lo va acumulando
@@ -359,15 +358,15 @@ void girar(int grados, int sentido)
       sentido = 1;
   }
 
-  if(grados_max < 0)
-  {
-    grados_max = fabs(grados_max);
-    sentido_giro = !sentido;
-  }
+//  if(grados_max < 0)
+//  {
+//    grados_max = fabs(grados_max);
+//    sentido_giro = !sentido;
+//  }
   
   if(grados_max != 0)
   {
-    if(grados_max >= LIMITE_GIRO)
+    if(fabs(grados_max) >= LIMITE_GIRO)
     {
       doblar_volante(GIRO_LIMITE, sentido);
       valor_giro_temp = 0;
@@ -375,7 +374,7 @@ void girar(int grados, int sentido)
     }
     else
     {
-      doblar_volante(GIRO_LIMITE, sentido);
+      doblar_volante(GIRO_LEVE, sentido);
       valor_giro_temp = 0;
       flag_rotacion = true;
       flag_giro_leve = true;
@@ -393,11 +392,11 @@ void doblar_volante(int grados, int sentido)
 {    
   if (!(sentido))
   {
-    analogWrite(PWM2, 230);
+    analogWrite(PWM2, 210);
   }
   else
   {
-    analogWrite(PWM2, 30);
+    analogWrite(PWM2, 50);
   }
   distancia_temp[1] = 0;
   grados_volante_max = grados;
@@ -517,7 +516,7 @@ void ISR_Timer()
 
   if(flag_linea_recta)
   {
-     centrar_vehiculo = valor_giro_instantaneo - valor_giro_total;
+     centrar_vehiculo = 0;//valor_giro_instantaneo - valor_giro_total;
      if(fabs(centrar_vehiculo) > LIMITE_DESVIO)
        flag_centrar_vehiculo = true;
   }
