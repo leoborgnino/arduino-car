@@ -45,12 +45,9 @@ int flag_uart                = 0;
 int flag_accion              = 0;
 int flag_centrar_vehiculo    = 0;
 int flag_cntrl_vel           = 0;
-int flag_finished            = 0;
 int flag_back                = 0;
-int flag_terminar_movimiento = 0;
-int flag_terminar_giro       = 0;
 int flag_timer               = 0;
-int flag_girar               = 0;
+int flag_girar_volante       = 0;
 int flag_mover               = 0;
 int flag_rotacion            = 0;
 int flag_linea_recta         = 0;
@@ -72,20 +69,23 @@ float offset[6]          = {0, 0, 0, 0, 0, 0};
 
 // Variables Interrupciones
 int contador_pid        = 0;
-int rotacion_incompleta = 0;
 int respuestaid_plan    = 0;
 
 float grados_por_rotar  = 0;
 float centrar_vehiculo  = 0;
 
 //Variables Movimiento
-int  posicion_volante    = 0;
-int  sentido_giro        = 0;
-int  grados_max          = 0;
-int  contador_movimiento = 0;
-int  sentido_temp        = 0;
-int  grados_volante_max  = 0;
-long distancia_max       = 0;
+int  sentido_centrado     = 0;
+int  sentido_offset       = 0;
+int  enderezar_volante    = 0;
+int  completar_movimiento = 0;
+int  posicion_volante     = 0;
+int  sentido_giro         = 0;
+int  grados_max           = 0;
+int  contador_movimiento  = 0;
+int  sentido_temp         = 0;
+int  grados_volante_max   = 0;
+long distancia_max        = 0;
 
 float  distancia_temp[2]      = {0.0, 0.0};
 float  velocidad_ref          = 3.0; // Velocidad crucero en m/s
@@ -176,30 +176,21 @@ void loop()
     flag_accion = 0;
   }
 
-  if(flag_terminar_giro)
+  if(completar_movimiento == 3)
   {
+    girar(0, 0);
     mover(30, 0.3, 0);
-    flag_terminar_giro = 0;
-    flag_back = 1;
-    valor_giro_temp = 0;
+    completar_movimiento = 4;
   }
 
-  if (flag_terminar_movimiento)
+  if(completar_movimiento == 5)
   {
-    Serial.print("Grados por rotar:");Serial.println(grados_por_rotar - fabs(valor_giro_temp));
-    girar(int(grados_por_rotar - fabs(valor_giro_temp)), sentido_giro);
-    mover(40, 0.3, 1);
-    flag_terminar_movimiento = 0;
+    completar_movimiento = 0;
+    Serial.print("Grados por rotar:");Serial.println(grados_por_rotar);
+    girar(int(grados_por_rotar), sentido_giro);
+    mover(30, 0.3, 1);
   }
-
-  if(flag_centrar_vehiculo)
-  {
-//    if(centrar_vehiculo > 0)
-//      girar(int(fabs(centrar_vehiculo)), 0);
-//    else
-//      girar(int(fabs(centrar_vehiculo)), 1);
-    flag_centrar_vehiculo = 0;
-  }
+  
   // En caso que el vehículo este rotando se obtiene cada 50ms el valor del gyróscopo en el eje Z y lo va acumulando
   //Serial.print(flag_timer);Serial.print("  ");Serial.println(flag_rotacion);
   if (flag_timer)

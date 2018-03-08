@@ -15,13 +15,15 @@ extern const int   CONTROL_PERIOD;
 extern const long  TIME_SAMPLE;
 extern const float DELTA_T;
 
-extern int         flag_girar;
+extern int         flag_girar_volante;
 extern int         flag_mover;
 extern int         flag_rotacion;
 extern int         flag_linea_recta;
 extern int         flag_giro_leve;
+extern int         flag_back;
 
 extern int         posicion_volante;
+extern int         sentido_offset;
 extern int         sentido_giro;
 extern int         grados_max;
 extern int         contador_movimiento;
@@ -62,7 +64,7 @@ void doblar_volante(int grados, int sentido)
   }
   distancia_temp[1] = 0;
   grados_volante_max = grados;
-  flag_girar = 1;
+  flag_girar_volante = 1;
   
 }
 
@@ -80,23 +82,24 @@ void mover(int distancia, double vlc, int sentido)
   if (!(sentido))
   {
     analogWrite(PWM1, 127 + vel_inicial);
+    flag_back = 1;
   }
   else
   {
     analogWrite(PWM1, 127 - vel_inicial);
   }
   contador_movimiento = 0;
-  distancia_max = distancia;
-  velocidad_ref = vlc;
-  sentido_temp = sentido;
-  movimiento[0] = vel_inicial;
-  distancia_temp[0] = 0;
+  distancia_max       = distancia;
+  velocidad_ref       = vlc;
+  sentido_temp        = sentido;
+  movimiento[0]       = vel_inicial;
+  distancia_temp[0]   = 0;
   distancia_temp_d[0] = 0;
-  p_controller[0]  = 0;
-  d_controller[0]  = 0;
-  i_controller[0]  = 0;
-  prev_error[0]    = 0;
-  flag_mover = 1;
+  p_controller[0]     = 0;
+  d_controller[0]     = 0;
+  i_controller[0]     = 0;
+  prev_error[0]       = 0;
+  flag_mover          = 1;
 }
 
 /******************************************************************************************
@@ -104,8 +107,32 @@ void mover(int distancia, double vlc, int sentido)
 /******************************************************************************************/
 void girar(int grados, int sentido)
 {
-  grados_max = grados + valor_giro_offset;
   sentido_giro = sentido;
+  
+  if(grados_max < 0)
+  {
+    grados_max = fabs(grados_max);
+    sentido_giro = !sentido;
+  }
+
+  if(valor_giro_offset == 0)
+  {
+    grados_max = grados;
+  }
+  else if(sentido_giro == sentido_offset)
+  {
+    grados_max = grados + valor_giro_offset;    
+  }
+  else
+  {
+    grados_max = grados - valor_giro_offset;
+    if(grados_max < 0)
+    {
+      grados_max = fabs(grados_max);
+      sentido_giro = !sentido;
+    }
+  }
+
   while (grados_max > 180)
   {
     grados_max = grados_max - 180;
@@ -114,12 +141,6 @@ void girar(int grados, int sentido)
     else
       sentido = 1;
   }
-
-//  if(grados_max < 0)
-//  {
-//    grados_max = fabs(grados_max);
-//    sentido_giro = !sentido;
-//  }
   
   if(fabs(grados_max) > GIRO_MIN)
   {
@@ -140,8 +161,27 @@ void girar(int grados, int sentido)
   }
   else
   {
-    valor_giro_offset = valor_giro_offset + grados_max;
-    flag_linea_recta = 0;
+    if(valor_giro_offset == 0)
+    {
+      valor_giro_offset = valor_giro_offset + grados_max;
+      sentido_offset = sentido_giro;
+    }
+    else if(sentido_offset == sentido_giro)
+    {
+      valor_giro_offset = valor_giro_offset + grados_max;
+      sentido_offset = sentido_giro;
+    }
+    else
+    {
+      valor_giro_offset = valor_giro_offset - grados_max;
+      sentido_offset = sentido_giro;
+      if(valor_giro_offset < 0)
+      {
+        valor_giro_offset = fabs(valor_giro_offset);
+        sentido_offset = !sentido_offset;
+      }
+    }
+    flag_linea_recta = 1;
     valor_giro_instantaneo = valor_giro_total;
   }
 
