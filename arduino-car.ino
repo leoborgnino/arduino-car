@@ -13,7 +13,7 @@ const int   INTE1            = 3;
 const int   BAUD_RATE        = 9600; 
 const float GIRO_MAX         = ROTACION_VOLANTE/2;
 const float GIRO_MIN         = 2.0;
-const float RUIDO_ROTACION   = 0.06;
+const float RUIDO_ROTACION   = 0.05;
 const int   MICRO_ADDR       = 10;
 const float PPV              = 36.0;
 const float LONG_ARC         = 2.0 * 3.14 * 10.0; //longitud de arco de la rueda en cm
@@ -75,13 +75,10 @@ float grados_por_rotar  = 0;
 float centrar_vehiculo  = 0;
 
 //Variables Movimiento
-int  sentido_centrado     = 0;
-int  sentido_offset       = 0;
 int  enderezar_volante    = 0;
 int  completar_movimiento = 0;
 int  posicion_volante     = 0;
 int  sentido_giro         = 0;
-int  grados_max           = 0;
 int  contador_movimiento  = 0;
 int  sentido_temp         = 0;
 int  grados_volante_max   = 0;
@@ -98,8 +95,8 @@ float  i_controller[2]        = {0.0, 0.0};
 float  prev_error[2]          = {0.0, 0.0};
 float  valor_giro_instantaneo = 0;
 float  valor_giro_total       = 0;
-float  valor_giro_temp        = 0;
-float  valor_giro_offset      = 0;
+float  grados_objetivo        = 0;
+float  grados_a_rotar         = 0;
 double kd                     = 1.0;
 double ki                     = 0.20;
 double kp                     = 20.0;
@@ -134,20 +131,6 @@ void setup()
  */
 void loop()
 {
-  if ((data_rec[1] == 'd') && (flag_accion))
-  {
-    respuestaid_plan = data_rec[0];
-    mover(data_rec[2], data_rec[3], data_rec[4]);
-    flag_accion = 0;
-  }
-
-  if ((data_rec[1] == 'f') && (flag_accion))
-  {
-    respuestaid_plan = data_rec[0];
-    girar(data_rec[2], data_rec[3]);
-    flag_accion = 0;
-  }
-
   if ((data_rec[1] == 'g') && (flag_accion))
   {
     respuestaid_mpu = data_rec[0];
@@ -171,14 +154,19 @@ void loop()
   if ((data_rec[1] == 'k') && (flag_accion))
   {
     respuestaid_plan = data_rec[0];
-    girar(data_rec[5], data_rec[6]);
+    
+    if(data_rec[6])
+      grados_objetivo = data_rec[5] * (-1.0);
+    else
+      grados_objetivo = data_rec[5] * 1.0;
+      
+    girar();
     mover(data_rec[2],data_rec[3]/100.0, data_rec[4]);
     flag_accion = 0;
   }
 
   if(completar_movimiento == 3)
   {
-    girar(0, 0);
     mover(30, 0.3, 0);
     completar_movimiento = 4;
   }
@@ -186,8 +174,7 @@ void loop()
   if(completar_movimiento == 5)
   {
     completar_movimiento = 0;
-    Serial.print("Grados por rotar:");Serial.println(grados_por_rotar);
-    girar(int(grados_por_rotar), sentido_giro);
+    girar();
     mover(30, 0.3, 1);
   }
   
@@ -196,10 +183,19 @@ void loop()
   if (flag_timer)
   {
     giro_z_instantaneo = obtener_z_gyro(datos, offset) * (TIME_SAMPLE/(1000.0*1000.0));
-    if((flag_rotacion || flag_back) && (fabs(giro_z_instantaneo) > RUIDO_ROTACION))
-      valor_giro_temp = valor_giro_temp + giro_z_instantaneo;
     if(fabs(giro_z_instantaneo) > RUIDO_ROTACION)
+    {
       valor_giro_total = valor_giro_total + giro_z_instantaneo;
+      while (fabs(valor_giro_total) > 180)
+      {
+        if(valor_giro_total > 0)
+          valor_giro_total = valor_giro_total - 360;
+        else
+          valor_giro_total = valor_giro_total + 360;
+      }
+
+    }
+
     
     flag_timer = 0;
   }

@@ -23,9 +23,7 @@ extern int         flag_giro_leve;
 extern int         flag_back;
 
 extern int         posicion_volante;
-extern int         sentido_offset;
 extern int         sentido_giro;
-extern int         grados_max;
 extern int         contador_movimiento;
 extern int         sentido_temp;
 extern int         grados_volante_max;
@@ -35,6 +33,8 @@ extern float       distancia_temp[2];
 extern float       velocidad_ref; // Velocidad crucero en m/s
 extern float       movimiento[2];
 extern float       vel_inicial;
+extern float       grados_objetivo;
+extern float       grados_a_rotar;
 extern float       distancia_temp_d[2];
 extern float       p_controller[2];
 extern float       d_controller[2];
@@ -42,8 +42,6 @@ extern float       i_controller[2];
 extern float       prev_error[2];
 extern float       valor_giro_instantaneo;
 extern float       valor_giro_total;
-extern float       valor_giro_temp;
-extern float       valor_giro_offset;
 extern double      kd;
 extern double      ki;
 extern double      kp;
@@ -105,86 +103,37 @@ void mover(int distancia, double vlc, int sentido)
 /******************************************************************************************
  * Función para girar el vehículo. Se debe pasar el sentido de giro y los grados deseados *
 /******************************************************************************************/
-void girar(int grados, int sentido)
+void girar()
 {
-  sentido_giro = sentido;
-  
-  if(grados_max < 0)
-  {
-    grados_max = fabs(grados_max);
-    sentido_giro = !sentido;
-  }
+  grados_a_rotar = grados_objetivo - valor_giro_total;
 
-  if(valor_giro_offset == 0)
+  while (fabs(grados_a_rotar) > 180)
   {
-    grados_max = grados;
-  }
-  else if(sentido_giro == sentido_offset)
-  {
-    grados_max = grados + valor_giro_offset;    
-  }
-  else
-  {
-    grados_max = grados - valor_giro_offset;
-    if(grados_max < 0)
-    {
-      grados_max = fabs(grados_max);
-      sentido_giro = !sentido;
-    }
-  }
-
-  while (grados_max > 180)
-  {
-    grados_max = grados_max - 180;
-    if (sentido)
-      sentido = 0;
+    if(grados_a_rotar > 0)
+      grados_a_rotar = grados_a_rotar - 360;
     else
-      sentido = 1;
+      grados_a_rotar = grados_a_rotar + 360;
   }
+
+  if(grados_a_rotar <= 0)
+    sentido_giro = 1;  
+  else
+    sentido_giro = 0;
   
-  if(fabs(grados_max) > GIRO_MIN)
+  if(fabs(grados_a_rotar) > GIRO_MIN)
   {
-    if(fabs(grados_max) >= LIMITE_GIRO)
+    if(fabs(grados_a_rotar) >= LIMITE_GIRO)
     {
-      doblar_volante(GIRO_LIMITE, sentido);
-      valor_giro_temp = 0;
+      doblar_volante(GIRO_LIMITE, sentido_giro);
       flag_rotacion = 1;
     }
     else
     {
-      doblar_volante(GIRO_LEVE, sentido);
-      valor_giro_temp = 0;
+      doblar_volante(GIRO_LEVE, sentido_giro);
       flag_rotacion = 1;
       flag_giro_leve = 1;
     }
-    valor_giro_offset = 0.0;
   }
-  else
-  {
-    if(valor_giro_offset == 0)
-    {
-      valor_giro_offset = valor_giro_offset + grados_max;
-      sentido_offset = sentido_giro;
-    }
-    else if(sentido_offset == sentido_giro)
-    {
-      valor_giro_offset = valor_giro_offset + grados_max;
-      sentido_offset = sentido_giro;
-    }
-    else
-    {
-      valor_giro_offset = valor_giro_offset - grados_max;
-      sentido_offset = sentido_giro;
-      if(valor_giro_offset < 0)
-      {
-        valor_giro_offset = fabs(valor_giro_offset);
-        sentido_offset = !sentido_offset;
-      }
-    }
-    flag_linea_recta = 1;
-    valor_giro_instantaneo = valor_giro_total;
-  }
-
 }
 
 //Control PID para la velocidad de los motores, es necesario calibrar los parametros.

@@ -19,7 +19,6 @@ extern int         contador_pid;
 extern int         respuestaid_plan;
 extern int         completar_movimiento;
 extern int         enderezar_volante;
-extern int         sentido_centrado;
 
 extern float       grados_por_rotar;
 extern float       centrar_vehiculo;
@@ -36,7 +35,9 @@ void ISR_Timer()
       completar_movimiento = 3;
   }
 
-  if (((fabs(valor_giro_temp) > grados_max) && (flag_rotacion == 1)) || completar_movimiento == 1 || enderezar_volante == 1)
+  grados_por_rotar = grados_objetivo - valor_giro_total;
+
+  if (((fabs(grados_por_rotar) < GIRO_MIN) && (flag_rotacion == 1)) || completar_movimiento == 1 || enderezar_volante == 1)
     {
       if(completar_movimiento == 1)
         completar_movimiento = 2;
@@ -49,56 +50,14 @@ void ISR_Timer()
         doblar_volante(GIRO_LEVE, !sentido_giro);
         flag_rotacion = 0;
         flag_giro_leve = 0;
-        valor_giro_temp = 0;
       }
       else
       {
         doblar_volante(GIRO_MOV, !sentido_giro);
         flag_rotacion = 0;
-        valor_giro_temp = 0;
       }
     }
 
-  if(flag_linea_recta)
-  {
-     centrar_vehiculo = valor_giro_instantaneo - valor_giro_total;
-     if(centrar_vehiculo > 0)
-     {
-         sentido_centrado = 0;
-         if(sentido_centrado == sentido_offset)
-         {
-           valor_giro_offset = valor_giro_offset + centrar_vehiculo; 
-         }
-         else
-         {
-           valor_giro_offset = valor_giro_offset - centrar_vehiculo;
-           if(valor_giro_offset < 0)
-           {
-             valor_giro_offset = fabs(valor_giro_offset);
-             sentido_offset = !sentido_offset; 
-           }  
-         }
-     }
-     else
-     {
-        sentido_centrado = 1;
-        if(sentido_centrado == sentido_offset)
-        {
-          valor_giro_offset = valor_giro_offset + centrar_vehiculo; 
-        }
-        else
-        {
-          valor_giro_offset = valor_giro_offset - centrar_vehiculo;
-          if(valor_giro_offset < 0)
-          {
-            valor_giro_offset = fabs(valor_giro_offset);
-            sentido_offset = !sentido_offset; 
-          }  
-        }
-     }
-     
-  }
-  
   contador_pid = (contador_pid + 1) % CONTROL_PERIOD;
   if((contador_pid == 1) && flag_mover)
     flag_cntrl_vel = 1;
@@ -114,12 +73,10 @@ void ISR_Timer()
         completar_movimiento = 5;
         
       flag_mover = 0;
-      flag_linea_recta = 0;
       flag_cntrl_vel = 0;  
       
-      if(flag_rotacion == 1 && ((grados_max - fabs(valor_giro_temp)) > GIRO_MIN))
+      if(flag_rotacion == 1 && (fabs(grados_objetivo - valor_giro_total) > GIRO_MIN))
       {
-        grados_por_rotar = grados_max - fabs(valor_giro_temp);
         completar_movimiento = 1;
       }
       else if(flag_rotacion == 1)
