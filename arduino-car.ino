@@ -12,7 +12,7 @@ const int   INTE0            = 2;
 const int   INTE1            = 3;
 const int   BAUD_RATE        = 9600; 
 const float GIRO_MAX         = ROTACION_VOLANTE/2;
-const float GIRO_MIN         = 2.0;
+const float GIRO_MIN         = 5.0;
 const float RUIDO_ROTACION   = 0.05;
 const int   MICRO_ADDR       = 10;
 const float PPV              = 36.0;
@@ -22,7 +22,7 @@ const int   LIMITE_DESVIO    = 2;
 const int   PWM1             = 10;//Motor Principal
 const int   PWM2             = 9;//Motor Volante
 const float GIRO_LIMITE      = 40;
-const float LIMITE_GIRO      = 5;
+const float LIMITE_GIRO      = 10;
 const float ROTACION_VOLANTE = 52.0 ;
 const int   PULSOS_VOLANTE   = 9;
 const float PASO_VOLANTE     = ROTACION_VOLANTE / PULSOS_VOLANTE;
@@ -32,9 +32,6 @@ const float GIRO_LEVE        = PASO_VOLANTE * 3.0;
 const int   CONTROL_PERIOD   = 10;
 const long  TIME_SAMPLE      = 50000;
 const float DELTA_T          = (TIME_SAMPLE * CONTROL_PERIOD)/(1000.0*1000.0);
-
-
-
 
 /********************************
  *    Variables Globales        *
@@ -121,7 +118,8 @@ void setup()
   obtener_datos(datos, offset);
 
   centrar_volante();
-  Serial.println("START");
+  delay(5000);
+  Serial.println("START");  
 }
 
 /**                                                                                                                                                                  
@@ -165,7 +163,7 @@ void loop()
     flag_accion = 0;
   }
 
-  if(completar_movimiento == 3)
+  if(completar_movimiento == 2)
   {
     mover(30, 0.3, 0);
     completar_movimiento = 4;
@@ -173,9 +171,9 @@ void loop()
 
   if(completar_movimiento == 5)
   {
-    completar_movimiento = 0;
     girar();
     mover(30, 0.3, 1);
+    completar_movimiento = 0;
   }
   
   // En caso que el vehículo este rotando se obtiene cada 50ms el valor del gyróscopo en el eje Z y lo va acumulando
@@ -187,16 +185,11 @@ void loop()
     {
       valor_giro_total = valor_giro_total + giro_z_instantaneo;
       while (fabs(valor_giro_total) > 180)
-      {
         if(valor_giro_total > 0)
           valor_giro_total = valor_giro_total - 360;
         else
           valor_giro_total = valor_giro_total + 360;
-      }
-
     }
-
-    
     flag_timer = 0;
   }
 

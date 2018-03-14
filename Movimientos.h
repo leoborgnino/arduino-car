@@ -54,11 +54,11 @@ void doblar_volante(int grados, int sentido)
 {    
   if (!(sentido))
   {
-    analogWrite(PWM2, 215);
+    analogWrite(PWM2, 205);
   }
   else
   {
-    analogWrite(PWM2, 45);
+    analogWrite(PWM2, 55);
   }
   distancia_temp[1] = 0;
   grados_volante_max = grados;
@@ -68,7 +68,7 @@ void doblar_volante(int grados, int sentido)
 
 void centrar_volante()
 {
-  analogWrite(PWM2, 30);
+  analogWrite(PWM2,50);
   delay(4000);
   analogWrite(PWM2, 127);
   doblar_volante(GIRO_MOV, 0);

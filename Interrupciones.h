@@ -31,8 +31,8 @@ void ISR_Timer()
     analogWrite(PWM2, 127);
     flag_girar_volante = 0;
     distancia_temp[1] = 0;
-    if(completar_movimiento == 2)
-      completar_movimiento = 3;
+    //if(completar_movimiento == 2)
+    //  completar_movimiento = 3;
   }
 
   grados_por_rotar = grados_objetivo - valor_giro_total;
@@ -43,8 +43,11 @@ void ISR_Timer()
         completar_movimiento = 2;
 
       if(enderezar_volante == 1)
+      {
         enderezar_volante = 0;
-                
+        send_uart("0 !", respuestaid_plan);
+      }
+                      
       if(flag_giro_leve)
       {
         doblar_volante(GIRO_LEVE, !sentido_giro);
@@ -82,9 +85,9 @@ void ISR_Timer()
       else if(flag_rotacion == 1)
       {
         enderezar_volante = 1;
-        send_uart("0 !", respuestaid_plan);  
+        //send_uart("0 !", respuestaid_plan);  
       }
-      else
+      else if(completar_movimiento == 0)
         send_uart("0 !", respuestaid_plan);
       
       distancia_temp[0] = 0;
