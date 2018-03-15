@@ -6,7 +6,9 @@
 extern const float PPV;
 extern const float LONG_ARC; //longitud de arco de la rueda en cm
 extern const float DIST_PULS;
+extern const float GIRO_MIN_ITER;
 extern const int   LIMITE_DESVIO;
+extern const float LIMITE_REVERSA;
 
 extern int         flag_centrar_vehiculo;
 extern int         flag_cntrl_vel;
@@ -14,6 +16,7 @@ extern int         flag_back;
 extern int         flag_terminar_movimiento;
 extern int         flag_terminar_giro;
 extern int         flag_timer;
+extern int         flag_reversa_corta;
 
 extern int         contador_pid;
 extern int         respuestaid_plan;
@@ -78,8 +81,13 @@ void ISR_Timer()
       flag_mover = 0;
       flag_cntrl_vel = 0;  
       
-      if(flag_rotacion == 1 && (fabs(grados_objetivo - valor_giro_total) > GIRO_MIN))
+      if(flag_rotacion == 1 && (fabs(grados_objetivo - valor_giro_total) > GIRO_MIN_ITER))
       {
+        if(fabs(grados_objetivo - valor_giro_total) <= LIMITE_REVERSA)
+          flag_reversa_corta = 1;
+        else
+          flag_reversa_corta = 0;
+
         completar_movimiento = 1;
       }
       else if(flag_rotacion == 1)

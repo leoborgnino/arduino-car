@@ -12,7 +12,8 @@ const int   INTE0            = 2;
 const int   INTE1            = 3;
 const int   BAUD_RATE        = 9600; 
 const float GIRO_MAX         = ROTACION_VOLANTE/2;
-const float GIRO_MIN         = 5.0;
+const float GIRO_MIN         = 2.0;
+const float GIRO_MIN_ITER    = 5.0;
 const float RUIDO_ROTACION   = 0.05;
 const int   MICRO_ADDR       = 10;
 const float PPV              = 36.0;
@@ -22,6 +23,7 @@ const int   LIMITE_DESVIO    = 2;
 const int   PWM1             = 10;//Motor Principal
 const int   PWM2             = 9;//Motor Volante
 const float GIRO_LIMITE      = 40;
+const float LIMITE_REVERSA   = 20;
 const float LIMITE_GIRO      = 10;
 const float ROTACION_VOLANTE = 52.0 ;
 const int   PULSOS_VOLANTE   = 9;
@@ -49,6 +51,7 @@ int flag_mover               = 0;
 int flag_rotacion            = 0;
 int flag_linea_recta         = 0;
 int flag_giro_leve           = 0;
+int flag_reversa_corta       = 0;
 
 // Variables de Comunicacion Serie
 char  SerRx;
@@ -165,14 +168,24 @@ void loop()
 
   if(completar_movimiento == 2)
   {
-    mover(30, 0.3, 0);
+    if(flag_reversa_corta)
+      mover(20, 0.3, 0);
+    else
+      mover(30, 0.3, 0);
+  
     completar_movimiento = 4;
   }
 
   if(completar_movimiento == 5)
   {
     girar();
-    mover(30, 0.3, 1);
+    if(flag_reversa_corta)
+    {
+      mover(20, 0.3, 1);
+      flag_reversa_corta = 0;
+    }
+    else
+      mover(30, 0.3, 1);
     completar_movimiento = 0;
   }
   
