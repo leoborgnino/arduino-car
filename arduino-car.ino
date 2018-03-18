@@ -76,6 +76,7 @@ float centrar_vehiculo  = 0;
 
 //Variables Movimiento
 int  enderezar_volante    = 0;
+int  esperar_volante      = 0;
 int  completar_movimiento = 0;
 int  posicion_volante     = 0;
 int  sentido_giro         = 0;
@@ -122,7 +123,7 @@ void setup()
 
   centrar_volante();
   delay(5000);
-  Serial.println("START");  
+  //Serial.println("START");  
 }
 
 /**                                                                                                                                                                  
@@ -166,7 +167,7 @@ void loop()
     flag_accion = 0;
   }
 
-  if(completar_movimiento == 2)
+  if(completar_movimiento == 3)
   {
     if(flag_reversa_corta)
       mover(20, 0.3, 0);

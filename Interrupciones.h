@@ -22,6 +22,7 @@ extern int         contador_pid;
 extern int         respuestaid_plan;
 extern int         completar_movimiento;
 extern int         enderezar_volante;
+extern int         esperar_volante;
 
 extern float       grados_por_rotar;
 extern float       centrar_vehiculo;
@@ -34,8 +35,16 @@ void ISR_Timer()
     analogWrite(PWM2, 127);
     flag_girar_volante = 0;
     distancia_temp[1] = 0;
-    //if(completar_movimiento == 2)
-    //  completar_movimiento = 3;
+    
+    if(completar_movimiento == 2)
+      completar_movimiento = 3;
+    
+    if(enderezar_volante == 2 || esperar_volante == 1)
+      {
+        enderezar_volante = 0;
+        esperar_volante = 0;
+        send_uart("0 !", respuestaid_plan);
+      }
   }
 
   grados_por_rotar = grados_objetivo - valor_giro_total;
@@ -46,11 +55,8 @@ void ISR_Timer()
         completar_movimiento = 2;
 
       if(enderezar_volante == 1)
-      {
-        enderezar_volante = 0;
-        send_uart("0 !", respuestaid_plan);
-      }
-                      
+        enderezar_volante = 2;
+               
       if(flag_giro_leve)
       {
         doblar_volante(GIRO_LEVE, !sentido_giro);
@@ -92,12 +98,15 @@ void ISR_Timer()
       }
       else if(flag_rotacion == 1)
       {
-        enderezar_volante = 1;
-        //send_uart("0 !", respuestaid_plan);  
+        enderezar_volante = 1;  
       }
       else if(completar_movimiento == 0)
-        send_uart("0 !", respuestaid_plan);
-      
+      { 
+        if(flag_girar_volante == 1)
+          esperar_volante = 1;
+        else
+          send_uart("0 !", respuestaid_plan);
+      }
       distancia_temp[0] = 0;
 
     }
