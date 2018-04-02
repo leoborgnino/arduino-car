@@ -6,8 +6,8 @@ extern int         flag_uart;
 extern int         flag_accion;
 
 extern int         data_len_rx;
-extern char        SerRx;
-extern char        data_rec[10];
+extern unsigned char        SerRx;
+extern unsigned char        data_rec[10];
 /*******************************************************************************************************************************************************
  * Arma la trama con el dato a enviar y lo envía por la UART. La trama contiene un encabezado, la longitud del dato high y low, el identificador del ***
  * objeto que requirió el dato, la dirección desde la cual se envía el dato, el DATO y un fin de trama *************************************************

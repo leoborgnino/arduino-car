@@ -34,6 +34,8 @@ const float GIRO_LEVE        = PASO_VOLANTE * 3.0;
 const int   CONTROL_PERIOD   = 10;
 const long  TIME_SAMPLE      = 50000;
 const float DELTA_T          = (TIME_SAMPLE * CONTROL_PERIOD)/(1000.0*1000.0);
+const float REVERSA_MIN      = 30.0;
+const float REVERSA_MAX      = 40.0;
 
 /********************************
  *    Variables Globales        *
@@ -54,9 +56,9 @@ int flag_giro_leve           = 0;
 int flag_reversa_corta       = 0;
 
 // Variables de Comunicacion Serie
-char  SerRx;
+unsigned char  SerRx;
 int   data_len_rx         = 0;
-char  data_rec[10];
+unsigned char  data_rec[10];
 char  mystring[100];
 char  buff[8][7];
 float datos[7];
@@ -83,12 +85,12 @@ int  sentido_giro         = 0;
 int  contador_movimiento  = 0;
 int  sentido_temp         = 0;
 int  grados_volante_max   = 0;
-long distancia_max        = 0;
+unsigned int distancia_max        = 0;
 
 float  distancia_temp[2]      = {0.0, 0.0};
 float  velocidad_ref          = 3.0; // Velocidad crucero en m/s
 float  movimiento[2]          = {0.0, 0.0};
-float  vel_inicial            = 35.0;
+float  vel_inicial            = 40.0;
 float  distancia_temp_d[2]    = {0.0, 0.0};
 float  p_controller[2]        = {0.0, 0.0};
 float  d_controller[2]        = {0.0, 0.0};
@@ -98,6 +100,10 @@ float  valor_giro_instantaneo = 0;
 float  valor_giro_total       = 0;
 float  grados_objetivo        = 0;
 float  grados_a_rotar         = 0;
+double velocidad_temp         = 0.0;
+double velocidad_abs          = 0.0;
+double distancia_abs          = 0.0;
+double distancia_abs_d        = 0.0;
 double kd                     = 1.0;
 double ki                     = 0.20;
 double kp                     = 20.0;
@@ -137,11 +143,12 @@ void loop()
   {
     respuestaid_mpu = data_rec[0];
     obtener_datos(datos, offset);
-    for(int i=0;i<7;i++)
-    {
+    for(int i=0;i<6;i++)
       dtostrf(datos[i],6,2,buff[i]);
-    }
-    sprintf(mystring, "%s %s %s %s %s %s !", buff[0], buff[1], buff[2], buff[3], buff[4], buff[5]);
+    dtostrf(valor_giro_total,6,2,buff[6]);
+    dtostrf((velocidad_abs)  ,6,2,buff[7]);
+
+    sprintf(mystring, "%s %s %s %s %s %s %s %s !", buff[0], buff[1], buff[2], buff[3], buff[4], buff[5],buff[6],buff[7]);
     send_uart(mystring, respuestaid_mpu);
     flag_accion = 0;
   }
@@ -170,9 +177,9 @@ void loop()
   if(completar_movimiento == 3)
   {
     if(flag_reversa_corta)
-      mover(20, 0.3, 0);
+      mover(REVERSA_MIN, 0.3, 0);
     else
-      mover(30, 0.3, 0);
+      mover(REVERSA_MAX, 0.3, 0);
   
     completar_movimiento = 4;
   }
@@ -182,11 +189,11 @@ void loop()
     girar();
     if(flag_reversa_corta)
     {
-      mover(20, 0.3, 1);
+      mover(REVERSA_MIN, 0.3, 1);
       flag_reversa_corta = 0;
     }
     else
-      mover(30, 0.3, 1);
+      mover(REVERSA_MAX, 0.3, 1);
     completar_movimiento = 0;
   }
   
@@ -207,17 +214,25 @@ void loop()
     flag_timer = 0;
   }
 
-  if (flag_cntrl_vel && flag_mover)
-    if (!(sentido_temp))
+  if (flag_cntrl_vel)
+  {
+    velocidad_abs = ((distancia_abs - distancia_abs_d))/DELTA_T;
+    distancia_abs_d = distancia_abs;
+    if (flag_mover)
+    {
+      if (!(sentido_temp))
       {
          flag_cntrl_vel = 0;
          analogWrite(PWM1, 127 + vel_inicial + pid_controller(0));
       }
-    else
+      else
       {
         flag_cntrl_vel = 0;
         analogWrite(PWM1, 127 - vel_inicial - pid_controller(0));
       }
+    }
+     flag_cntrl_vel = 0;
+  }
 
   if (Serial.available() > 0)
     receive_uart();

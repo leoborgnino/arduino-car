@@ -26,6 +26,7 @@ extern int         esperar_volante;
 
 extern float       grados_por_rotar;
 extern float       centrar_vehiculo;
+extern double      distancia_abs;
 
 
 void ISR_Timer()
@@ -35,7 +36,7 @@ void ISR_Timer()
     analogWrite(PWM2, 127);
     flag_girar_volante = 0;
     distancia_temp[1] = 0;
-    
+
     if(completar_movimiento == 2)
       completar_movimiento = 3;
     
@@ -71,7 +72,7 @@ void ISR_Timer()
     }
 
   contador_pid = (contador_pid + 1) % CONTROL_PERIOD;
-  if((contador_pid == 1) && flag_mover)
+  if(contador_pid == 1)
     flag_cntrl_vel = 1;
 
   if ( (( distancia_temp[0] > distancia_max) ) && (flag_mover == 1) )
@@ -119,6 +120,7 @@ void ISR_INTE0()//PIN2 Motor Principal
 {
   if (flag_mover)
     distancia_temp[0] = distancia_temp[0] + DIST_PULS;
+  distancia_abs = distancia_abs + DIST_PULS;
 }
 
 void ISR_INTE1()//PIN3 Motor Volante
@@ -131,6 +133,6 @@ void ISR_INTE1()//PIN3 Motor Volante
     else
       posicion_volante--;
   }
-  Serial.println(distancia_temp[1]);
+  //Serial.println(distancia_temp[1]);
 }
 

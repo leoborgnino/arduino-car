@@ -22,12 +22,12 @@ extern int         flag_linea_recta;
 extern int         flag_giro_leve;
 extern int         flag_back;
 
-extern int         posicion_volante;
-extern int         sentido_giro;
-extern int         contador_movimiento;
-extern int         sentido_temp;
-extern int         grados_volante_max;
-extern long        distancia_max;
+extern int          posicion_volante;
+extern int          sentido_giro;
+extern int          contador_movimiento;
+extern int          sentido_temp;
+extern int          grados_volante_max;
+extern unsigned int distancia_max;
 
 extern float       distancia_temp[2];
 extern float       velocidad_ref; // Velocidad crucero en m/s
@@ -42,6 +42,7 @@ extern float       i_controller[2];
 extern float       prev_error[2];
 extern float       valor_giro_instantaneo;
 extern float       valor_giro_total;
+extern double      velocidad_temp;
 extern double      kd;
 extern double      ki;
 extern double      kp;
@@ -54,11 +55,11 @@ void doblar_volante(int grados, int sentido)
 {    
   if (!(sentido))
   {
-    analogWrite(PWM2, 205);
+    analogWrite(PWM2, 210);
   }
   else
   {
-    analogWrite(PWM2, 55);
+    analogWrite(PWM2, 45);
   }
   distancia_temp[1] = 0;
   grados_volante_max = grados;
@@ -75,7 +76,7 @@ void centrar_volante()
   posicion_volante = VOLANTE_CENTRADO;
 }
 
-void mover(int distancia, double vlc, int sentido)
+void mover(unsigned int distancia, double vlc, int sentido)
 {
   if (!(sentido))
   {
@@ -145,7 +146,6 @@ double pid_controller(int motor)
   double error = 0;
   double valor_instantaneo = 0;
   double pid_contr = 0;
-  double velocidad_temp = 0; 
 
   velocidad_temp = ((distancia_temp[motor] - distancia_temp_d[motor])*0.01)/DELTA_T;
   error = velocidad_ref - velocidad_temp;
