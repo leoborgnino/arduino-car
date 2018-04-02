@@ -11,6 +11,9 @@
 const int   INTE0            = 2;
 const int   INTE1            = 3;
 const int   BAUD_RATE        = 9600; 
+const int   CONTROL_PERIOD   = 10;
+const long  TIME_SAMPLE      = 50000;
+const float DELTA_T          = (TIME_SAMPLE * CONTROL_PERIOD)/(1000.0*1000.0);
 const float GIRO_MAX         = ROTACION_VOLANTE/2;
 const float GIRO_MIN         = 2.0;
 const float GIRO_MIN_ITER    = 5.0;
@@ -31,11 +34,15 @@ const float PASO_VOLANTE     = ROTACION_VOLANTE / PULSOS_VOLANTE;
 const float GIRO_MOV         = PASO_VOLANTE * 5.0;
 const int   VOLANTE_CENTRADO = 4;
 const float GIRO_LEVE        = PASO_VOLANTE * 3.0;
-const int   CONTROL_PERIOD   = 10;
-const long  TIME_SAMPLE      = 50000;
-const float DELTA_T          = (TIME_SAMPLE * CONTROL_PERIOD)/(1000.0*1000.0);
 const float REVERSA_MIN      = 30.0;
 const float REVERSA_MAX      = 40.0;
+const float ULTR_LIMITE      = 50.0;
+const int   N_ULTR_SENSOR    =    2;
+const int   ULTR_PERIOD      =    2;
+const int   ULTRA_TRIGER     =   A1;
+const int   ULTRA_ECHO       =   18;
+const int   ULTRB_TRIGER     =   A0;
+const int   ULTRB_ECHO       =   19;
 
 /********************************
  *    Variables Globales        *
@@ -60,7 +67,7 @@ unsigned char  SerRx;
 int   data_len_rx         = 0;
 unsigned char  data_rec[10];
 char  mystring[100];
-char  buff[8][7];
+char  buff[10][7];
 float datos[7];
 
 int  respuestaid_mpu      =  0;
@@ -108,25 +115,47 @@ double kd                     = 1.0;
 double ki                     = 0.20;
 double kp                     = 20.0;
 
+// Variables Ultrasonido
+
+double ultr_distance[N_ULTR_SENSOR];
+long  ultr_start_time[N_ULTR_SENSOR];
 
 void setup()
 {
-  TCCR2B = TCCR2B & 0b11111000 | 0x01;   // Establece frecuencia pwm pines 9,10 a 31K
+  // Configuracion Timer 1
   Timer1.initialize(double(TIME_SAMPLE)); // WARNING: Depende de la versión del compilador  // Dispara cada TIME_SAMPLE ms
   Timer1.attachInterrupt(ISR_Timer);     // Activa la interrupcion y la asocia a ISR_Timer
+
+  // TRISX
+  pinMode(ULTRA_TRIGER,OUTPUT);
+  pinMode(ULTRB_TRIGER,OUTPUT);
+  digitalWrite(ULTRA_TRIGER,LOW);
+  digitalWrite(ULTRB_TRIGER,LOW);
+
+  // Serial Comunication
   Serial.begin(BAUD_RATE);               // Inicio la transmision serie
-  
+
+  // PWM Configuration
+  TCCR2B = TCCR2B & 0b11111000 | 0x01;   // Establece frecuencia pwm pines 9,10 a 31K
   analogWrite(PWM1, 127);                // PWM1 50% duty
   analogWrite(PWM2, 127);                // PWM2 50% duty
-  
+
+  // Interrupciones externas (Pines 18,19,2,3)
   attachInterrupt(digitalPinToInterrupt(INTE0), ISR_INTE0,    CHANGE); // Interrupcion externa en pin 2 por cambio de nivel
   attachInterrupt(digitalPinToInterrupt(INTE1), ISR_INTE1,    CHANGE); // Interrupción externa en pin 3 por cambio de nivel
-  
+  attachInterrupt(digitalPinToInterrupt(ULTRA_ECHO),ISR_ECHOA_INT, CHANGE); 
+  attachInterrupt(digitalPinToInterrupt(ULTRB_ECHO),ISR_ECHOB_INT, CHANGE); 
+
+  // Acelerometro Inicializacion y calibracion
   init_MPU6050();
   calibrar_MPU6050(offset);
-  
   obtener_datos(datos, offset);
 
+  // Reset Sensor ultrasonido variables
+  for (int i = 0; i < N_ULTR_SENSOR; i++)
+    ultr_distance [i] = 0.0; 
+
+  // Centrar volante
   centrar_volante();
   delay(5000);
   //Serial.println("START");  
@@ -147,8 +176,10 @@ void loop()
       dtostrf(datos[i],6,2,buff[i]);
     dtostrf(valor_giro_total,6,2,buff[6]);
     dtostrf((velocidad_abs)  ,6,2,buff[7]);
+    dtostrf((ultr_distance[0])  ,6,2,buff[8]);
+    dtostrf((ultr_distance[1])  ,6,2,buff[9]);
 
-    sprintf(mystring, "%s %s %s %s %s %s %s %s !", buff[0], buff[1], buff[2], buff[3], buff[4], buff[5],buff[6],buff[7]);
+    sprintf(mystring, "%s %s %s %s %s %s %s %s %s %s !", buff[0], buff[1], buff[2], buff[3], buff[4], buff[5],buff[6],buff[7],buff[8],buff[9]);
     send_uart(mystring, respuestaid_mpu);
     flag_accion = 0;
   }
