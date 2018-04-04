@@ -30,18 +30,27 @@ extern int         respuestaid_plan;
 extern int         completar_movimiento;
 extern int         enderezar_volante;
 extern int         esperar_volante;
+extern int         objeto_detectado;
 
 extern float       grados_por_rotar;
 extern float       centrar_vehiculo;
 extern double      distancia_abs;
 
 extern double      ultr_distance[2];
+extern double      distancia_objeto[2];
 extern long        ultr_start_time[2];
 
 int contador_ultrasonido = 0;
 
 void ISR_Timer()
 {
+  // Se evalua si hay un objeto cercano
+  if(((ultr_distance[0] < ULTR_LIMITE)||(ultr_distance[1] < ULTR_LIMITE)) && (objeto_detectado = 0))
+  {
+    objeto_detectado = 1;
+    distancia_objeto[0] = ultr_distance[0];
+    distancia_objeto[1] = ultr_distance[1];
+  }
 
   // Condiciones de corte volante
   
@@ -92,27 +101,42 @@ void ISR_Timer()
     flag_cntrl_vel = 1;
 
   // Condiciones de distancia de desplazamiento
-  if ( (( distancia_temp[0] > distancia_max) ) && (flag_mover == 1) )
+  if ( ((distancia_temp[0] > distancia_max) && (flag_mover == 1)) || (objeto_detectado == 1 && (flag_mover == 1)) )
     {
       analogWrite(PWM1, 127);
       
       if(flag_back)
         flag_back = 0;
-
-      if(completar_movimiento == 4)
-        completar_movimiento = 5;
         
       flag_mover = 0;
       flag_cntrl_vel = 0;  
       
-      if(flag_rotacion == 1 && (fabs(grados_objetivo - valor_giro_total) > GIRO_MIN_ITER))
+      if(((flag_rotacion == 1) && (fabs(grados_objetivo - valor_giro_total) > GIRO_MIN_ITER)) || objeto_detectado == 1)
       {
-        if(fabs(grados_objetivo - valor_giro_total) <= LIMITE_REVERSA)
-          flag_reversa_corta = 1;
+        if(objeto_detectado == 1)
+        {
+          if(flag_rotacion == 1)
+          {
+            completar_movimiento = 1;
+            objeto_detectado = 2;
+            flag_reversa_corta = 0;
+          }
+          else
+          {
+            completar_movimiento = 3;
+            objeto_detectado = 2;
+            flag_reversa_corta = 0;
+          }  
+        }
         else
-          flag_reversa_corta = 0;
+        {
+          if(fabs(grados_objetivo - valor_giro_total) <= LIMITE_REVERSA)
+            flag_reversa_corta = 1;
+          else
+            flag_reversa_corta = 0;
 
-        completar_movimiento = 1;
+          completar_movimiento = 1;
+        }
       }
       else if(flag_rotacion == 1)
       {
@@ -125,10 +149,24 @@ void ISR_Timer()
         else
           send_uart("0 !", respuestaid_plan);
       }
+
+      if(completar_movimiento == 4)
+      {
+        if(objeto_detectado == 2)
+        {
+          completar_movimiento = 0;
+          objeto_detectado = 3;
+        }
+        else
+        {
+          completar_movimiento = 5;
+        }
+      }
+        
       distancia_temp[0] = 0;
 
     }
-
+    
   // Condiciones de Trigger del ultrasonido
   contador_ultrasonido = (contador_ultrasonido + 1) % ULTR_PERIOD;
   if(contador_ultrasonido == 1)
@@ -170,7 +208,7 @@ void ISR_ECHOA_INT()
  if(digitalRead(ULTRA_ECHO))
   ultr_start_time[0] = micros();
  else
-    ultr_distance[0] = (micros()-ultr_start_time[0])/58.0;
+  ultr_distance[0] = (micros()-ultr_start_time[0])/58.0;
  }
 
  void ISR_ECHOB_INT()
@@ -178,7 +216,7 @@ void ISR_ECHOA_INT()
  if(digitalRead(ULTRB_ECHO))
   ultr_start_time[1] = micros();
  else
-    ultr_distance[1] = (micros()-ultr_start_time[1])/58.0;
+  ultr_distance[1] = (micros()-ultr_start_time[1])/58.0;
  }
 
 

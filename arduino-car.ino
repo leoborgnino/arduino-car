@@ -1,4 +1,4 @@
-#include "TimerOne.h"
+#include <TimerOne.h>
 #include <Wire.h>
 
 #include "MPU6050.h"
@@ -92,6 +92,7 @@ int  sentido_giro         = 0;
 int  contador_movimiento  = 0;
 int  sentido_temp         = 0;
 int  grados_volante_max   = 0;
+int  objeto_detectado     = 0;
 unsigned int distancia_max        = 0;
 
 float  distancia_temp[2]      = {0.0, 0.0};
@@ -118,6 +119,7 @@ double kp                     = 20.0;
 // Variables Ultrasonido
 
 double ultr_distance[N_ULTR_SENSOR];
+double distancia_objeto[N_ULTR_SENSOR];
 long  ultr_start_time[N_ULTR_SENSOR];
 
 void setup()
@@ -205,6 +207,16 @@ void loop()
     flag_accion = 0;
   }
 
+  if(objeto_detectado == 3)
+  {
+    dtostrf(valor_giro_total,6,2,buff[0]);
+    dtostrf((distancia_objeto[0])  ,6,2,buff[1]);
+    dtostrf((distancia_objeto[1])  ,6,2,buff[2]);
+
+    sprintf(mystring, "$ %s %s %s !", buff[0], buff[1], buff[2]);
+    send_uart(mystring, respuestaid_plan);
+    objeto_detectado = 0;
+  }
   if(completar_movimiento == 3)
   {
     if(flag_reversa_corta)
