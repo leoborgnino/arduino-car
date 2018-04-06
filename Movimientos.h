@@ -14,6 +14,9 @@ extern const float GIRO_LEVE;
 extern const int   CONTROL_PERIOD;
 extern const long  TIME_SAMPLE;
 extern const float DELTA_T;
+extern const float ULTR_LIMITE;
+extern const int   MUESTRAS_DETECCION;
+extern const int   LIMITE_MUESTRAS;
 
 extern int         flag_girar_volante;
 extern int         flag_mover;
@@ -47,6 +50,11 @@ extern double      kd;
 extern double      ki;
 extern double      kp;
 
+extern double ultr_distance[2];
+extern double distancia_objeto[2];
+extern int    contador_obstaculo[2];
+extern int    ciclo_deteccion[2];
+extern int    flag_objeto_detectado[2];
 
 /************************************************************************************************************************************
  * Función para mover el vehículo. Se deben pasar como parámetros la distancia a recorrer, la velocidad de los motores y el sentido *
@@ -162,5 +170,26 @@ double pid_controller(int motor)
       movimiento[motor] = 110.0;
    
   return movimiento[motor];
+}
+
+// Filtro de moda para la deteccion de objetos del sensor de ultrasonido.
+// Solo se considera objeto detectado si mas de la mitad de los datos lo confirman.
+void filtrar_datos_ultrasonido(int indice)
+{
+  ciclo_deteccion[indice]++;
+  if (ultr_distance[indice] < ULTR_LIMITE)
+  {
+    contador_obstaculo[indice]++;
+    distancia_objeto[indice] = ultr_distance[indice];
+  }
+  if(ciclo_deteccion[indice] == MUESTRAS_DETECCION)
+  {
+    if(contador_obstaculo[indice] >= LIMITE_MUESTRAS)
+      flag_objeto_detectado[indice] = 1;
+    else
+      flag_objeto_detectado[indice] = 0;
+    contador_obstaculo[indice] = 0;
+    ciclo_deteccion[indice] = 0;
+  }
 }
 

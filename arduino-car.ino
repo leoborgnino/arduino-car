@@ -8,41 +8,44 @@
  *        Constantes            *
 /********************************/
 
-const int   INTE0            = 2;
-const int   INTE1            = 3;
-const int   BAUD_RATE        = 9600; 
-const int   CONTROL_PERIOD   = 10;
-const long  TIME_SAMPLE      = 50000;
-const float DELTA_T          = (TIME_SAMPLE * CONTROL_PERIOD)/(1000.0*1000.0);
-const float GIRO_MAX         = ROTACION_VOLANTE/2;
-const float GIRO_MIN         = 2.0;
-const float GIRO_MIN_ITER    = 5.0;
-const float RUIDO_ROTACION   = 0.05;
-const int   MICRO_ADDR       = 10;
-const float PPV              = 36.0;
-const float LONG_ARC         = 2.0 * 3.14 * 10.0; //longitud de arco de la rueda en cm
-const float DIST_PULS        = LONG_ARC / PPV;
-const int   LIMITE_DESVIO    = 2;
-const int   PWM1             = 10;//Motor Principal
-const int   PWM2             = 9;//Motor Volante
-const float GIRO_LIMITE      = 40;
-const float LIMITE_REVERSA   = 20;
-const float LIMITE_GIRO      = 10;
-const float ROTACION_VOLANTE = 52.0 ;
-const int   PULSOS_VOLANTE   = 9;
-const float PASO_VOLANTE     = ROTACION_VOLANTE / PULSOS_VOLANTE;
-const float GIRO_MOV         = PASO_VOLANTE * 5.0;
-const int   VOLANTE_CENTRADO = 4;
-const float GIRO_LEVE        = PASO_VOLANTE * 3.0;
-const float REVERSA_MIN      = 30.0;
-const float REVERSA_MAX      = 40.0;
-const float ULTR_LIMITE      = 50.0;
-const int   N_ULTR_SENSOR    =    2;
-const int   ULTR_PERIOD      =    2;
-const int   ULTRA_TRIGER     =   A1;
-const int   ULTRA_ECHO       =   18;
-const int   ULTRB_TRIGER     =   A0;
-const int   ULTRB_ECHO       =   19;
+const int   INTE0              = 2;
+const int   INTE1              = 3;
+const int   BAUD_RATE          = 9600; 
+const int   CONTROL_PERIOD     = 10;
+const long  TIME_SAMPLE        = 50000;
+const float DELTA_T            = (TIME_SAMPLE * CONTROL_PERIOD)/(1000.0*1000.0);
+const float GIRO_MAX           = ROTACION_VOLANTE/2;
+const float GIRO_MIN           = 2.0;
+const float GIRO_MIN_ITER      = 5.0;
+const float RUIDO_ROTACION     = 0.05;
+const int   MICRO_ADDR         = 10;
+const float PPV                = 36.0;
+const float LONG_ARC           = 2.0 * 3.14 * 10.0; //longitud de arco de la rueda en cm
+const float DIST_PULS          = LONG_ARC / PPV;
+const int   LIMITE_DESVIO      = 2;
+const int   PWM1               = 10;//Motor Principal
+const int   PWM2               = 9;//Motor Volante
+const float GIRO_LIMITE        = 40;
+const float LIMITE_REVERSA     = 20;
+const float LIMITE_GIRO        = 10;
+const float ROTACION_VOLANTE   = 52.0 ;
+const int   PULSOS_VOLANTE     = 9;
+const float PASO_VOLANTE       = ROTACION_VOLANTE / PULSOS_VOLANTE;
+const float GIRO_MOV           = PASO_VOLANTE * 5.0;
+const int   VOLANTE_CENTRADO   = 4;
+const float GIRO_LEVE          = PASO_VOLANTE * 3.0;
+const float REVERSA_MIN        = 30.0;
+const float REVERSA_MAX        = 40.0;
+const float ULTR_LIMITE        = 50.0;
+const int   N_ULTR_SENSOR      =    2;
+const int   ULTR_PERIOD        =    2;
+const int   ULTRA_TRIGER       =   A1;
+const int   ULTRA_ECHO         =   18;
+const int   ULTRB_TRIGER       =   A0;
+const int   ULTRB_ECHO         =   19;
+const int   MODO_ULTRASONIDO   =    1;
+const int   MUESTRAS_DETECCION =    5;
+const int   LIMITE_MUESTRAS    =    3;
 
 /********************************
  *    Variables Globales        *
@@ -120,7 +123,10 @@ double kp                     = 20.0;
 
 double ultr_distance[N_ULTR_SENSOR];
 double distancia_objeto[N_ULTR_SENSOR];
-long  ultr_start_time[N_ULTR_SENSOR];
+int    contador_obstaculo[N_ULTR_SENSOR];
+long   ultr_start_time[N_ULTR_SENSOR];
+int    ciclo_deteccion[N_ULTR_SENSOR];
+int    flag_objeto_detectado[N_ULTR_SENSOR];
 
 void setup()
 {
@@ -155,8 +161,12 @@ void setup()
 
   // Reset Sensor ultrasonido variables
   for (int i = 0; i < N_ULTR_SENSOR; i++)
-    ultr_distance [i] = 0.0; 
-
+  {
+    ultr_distance           [i] = 0.0;
+    contador_obstaculo      [i] =   0;
+    ciclo_deteccion         [i] =   0;
+    flag_objeto_detectado   [i] =   0;
+  }
   // Centrar volante
   centrar_volante();
   delay(5000);
@@ -219,10 +229,17 @@ void loop()
   }
   if(completar_movimiento == 3)
   {
-    if(flag_reversa_corta)
-      mover(REVERSA_MIN, 0.3, 0);
+    if(objeto_detectado == 2)
+    {
+      mover(int(distancia_temp[0]), 0.3, 0);
+    }
     else
-      mover(REVERSA_MAX, 0.3, 0);
+    {
+      if(flag_reversa_corta)
+        mover(REVERSA_MIN, 0.3, 0);
+      else
+        mover(REVERSA_MAX, 0.3, 0);
+    }
   
     completar_movimiento = 4;
   }
@@ -276,7 +293,7 @@ void loop()
     }
      flag_cntrl_vel = 0;
   }
-
+  
   if (Serial.available() > 0)
     receive_uart();
 }

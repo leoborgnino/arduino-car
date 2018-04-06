@@ -16,6 +16,7 @@ extern const int   ULTRA_TRIGER;
 extern const int   ULTRA_ECHO;
 extern const int   ULTRB_TRIGER;
 extern const int   ULTRB_ECHO;
+extern const int   MODO_ULTRASONIDO;
 
 extern int         flag_centrar_vehiculo;
 extern int         flag_cntrl_vel;
@@ -44,14 +45,14 @@ int contador_ultrasonido = 0;
 
 void ISR_Timer()
 {
+  
   // Se evalua si hay un objeto cercano
-  if(((ultr_distance[0] < ULTR_LIMITE)||(ultr_distance[1] < ULTR_LIMITE)) && (objeto_detectado = 0))
+  if(((flag_objeto_detectado[0])||(flag_objeto_detectado[1])) && (objeto_detectado == 0) && (flag_mover) && (flag_back == 0) && (flag_girar_volante == 0))
   {
-    objeto_detectado = 1;
-    distancia_objeto[0] = ultr_distance[0];
-    distancia_objeto[1] = ultr_distance[1];
+    objeto_detectado = MODO_ULTRASONIDO;
+    distancia_objeto[0] = distancia_objeto[0] + distancia_temp[0];
+    distancia_objeto[1] = distancia_objeto[1] + distancia_temp[0];
   }
-
   // Condiciones de corte volante
   
   if((distancia_temp[1] >= grados_volante_max) && (flag_girar_volante == 1))
@@ -104,9 +105,6 @@ void ISR_Timer()
   if ( ((distancia_temp[0] > distancia_max) && (flag_mover == 1)) || (objeto_detectado == 1 && (flag_mover == 1)) )
     {
       analogWrite(PWM1, 127);
-      
-      if(flag_back)
-        flag_back = 0;
         
       flag_mover = 0;
       flag_cntrl_vel = 0;  
@@ -162,6 +160,9 @@ void ISR_Timer()
           completar_movimiento = 5;
         }
       }
+
+      if(flag_back)
+        flag_back = 0;
         
       distancia_temp[0] = 0;
 
@@ -208,15 +209,23 @@ void ISR_ECHOA_INT()
  if(digitalRead(ULTRA_ECHO))
   ultr_start_time[0] = micros();
  else
+ {
   ultr_distance[0] = (micros()-ultr_start_time[0])/58.0;
+  if(objeto_detectado == 0)
+    filtrar_datos_ultrasonido(0);  
  }
+}
 
  void ISR_ECHOB_INT()
 {
  if(digitalRead(ULTRB_ECHO))
   ultr_start_time[1] = micros();
  else
+ {
   ultr_distance[1] = (micros()-ultr_start_time[1])/58.0;
+  if(objeto_detectado == 0)
+    filtrar_datos_ultrasonido(1);
  }
+}
 
 
