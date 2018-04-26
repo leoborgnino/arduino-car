@@ -16,7 +16,10 @@ extern const int   ULTRA_TRIGER;
 extern const int   ULTRA_ECHO;
 extern const int   ULTRB_TRIGER;
 extern const int   ULTRB_ECHO;
+extern const int   ULTRC_TRIGER;
+extern const int   ULTRC_ECHO;
 extern const int   MODO_ULTRASONIDO;
+
 
 extern int         flag_centrar_vehiculo;
 extern int         flag_cntrl_vel;
@@ -25,6 +28,9 @@ extern int         flag_terminar_movimiento;
 extern int         flag_terminar_giro;
 extern int         flag_timer;
 extern int         flag_reversa_corta;
+extern int         flag_ultrasonido;
+extern int         flag_ultr_request;
+extern int         ultr_flag_start;
 
 extern int         contador_pid;
 extern int         respuestaid_plan;
@@ -37,15 +43,42 @@ extern float       grados_por_rotar;
 extern float       centrar_vehiculo;
 extern double      distancia_abs;
 
-extern double      ultr_distance[2];
-extern double      distancia_objeto[2];
-extern long        ultr_start_time[2];
+extern double      ultr_distance[3];
+extern double      distancia_objeto[3];
+extern long        ultr_start_time[3];
 
 int contador_ultrasonido = 0;
 
 void ISR_Timer()
 {
-  
+
+ if((digitalRead(ULTRB_ECHO)) && (ultr_flag_start == 0) && (flag_ultr_request == 2))
+ {
+  Serial.println("ULTRB Start");
+  ultr_start_time[1] = micros();
+  ultr_flag_start = 1;
+ }
+ else if ( (ultr_flag_start == 1) && (flag_ultr_request == 2))
+ {
+  Serial.println("ULTRB End");
+  ultr_distance[1] = (micros()-ultr_start_time[1])/58.0;
+  if(objeto_detectado == 0)
+    filtrar_datos_ultrasonido(1);
+  ultr_flag_start = 0;
+ }
+
+if((digitalRead(ULTRC_ECHO)) && (ultr_flag_start == 0) && (flag_ultr_request == 0))
+ {
+  Serial.println("ULTRC Start");
+  ultr_start_time[2] = micros();
+  ultr_flag_start = 1;
+ }
+ else if ( (ultr_flag_start == 1) && (flag_ultr_request == 0))
+ {
+  Serial.println("ULTRC End");
+  ultr_distance[2] = (micros()-ultr_start_time[1])/58.0;
+  ultr_flag_start = 0;
+ }  
   // Se evalua si hay un objeto cercano
   if(((flag_objeto_detectado[0])||(flag_objeto_detectado[1])) && (objeto_detectado == 0) && (flag_mover) && (flag_back == 0) && (flag_girar_volante == 0))
   {
@@ -102,14 +135,14 @@ void ISR_Timer()
     flag_cntrl_vel = 1;
 
   // Condiciones de distancia de desplazamiento
-  if ( ((distancia_temp[0] > distancia_max) && (flag_mover == 1)) || (objeto_detectado == 1 && (flag_mover == 1)) )
+  if ( ((distancia_temp[0] > distancia_max) && (flag_mover == 1)) || ((objeto_detectado == 1) && (flag_mover == 1)) )
     {
       analogWrite(PWM1, 127);
         
       flag_mover = 0;
       flag_cntrl_vel = 0;  
       
-      if(((flag_rotacion == 1) && (fabs(grados_objetivo - valor_giro_total) > GIRO_MIN_ITER)) || objeto_detectado == 1)
+      if(((flag_rotacion == 1) && (fabs(grados_objetivo - valor_giro_total) > GIRO_MIN_ITER)) || (objeto_detectado == 1))
       {
         if(objeto_detectado == 1)
         {
@@ -170,14 +203,7 @@ void ISR_Timer()
     
   // Condiciones de Trigger del ultrasonido
   contador_ultrasonido = (contador_ultrasonido + 1) % ULTR_PERIOD;
-  if(contador_ultrasonido == 1)
-  {
-    digitalWrite(ULTRA_TRIGER,HIGH); //se envia el pulso ultrasonico
-    digitalWrite(ULTRB_TRIGER,HIGH); //se envia el pulso ultrasonico
-    delayMicroseconds(10);//El pulso debe tener una duracion minima de 10 microsegundos // FIX ME (Estaba en 20)
-    digitalWrite(ULTRA_TRIGER,LOW); //Ambas lineas son por estabilizacion del sensor
-    digitalWrite(ULTRB_TRIGER,LOW); //Ambas lineas son por estabilizacion del sensor
-  }
+  flag_ultrasonido = (contador_ultrasonido == 1);
 
 
   flag_timer = 1;
@@ -213,18 +239,6 @@ void ISR_ECHOA_INT()
   ultr_distance[0] = (micros()-ultr_start_time[0])/58.0;
   if(objeto_detectado == 0)
     filtrar_datos_ultrasonido(0);  
- }
-}
-
- void ISR_ECHOB_INT()
-{
- if(digitalRead(ULTRB_ECHO))
-  ultr_start_time[1] = micros();
- else
- {
-  ultr_distance[1] = (micros()-ultr_start_time[1])/58.0;
-  if(objeto_detectado == 0)
-    filtrar_datos_ultrasonido(1);
  }
 }
 

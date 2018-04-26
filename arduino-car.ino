@@ -10,9 +10,9 @@
 
 const int   INTE0              = 2;
 const int   INTE1              = 3;
-const int   BAUD_RATE          = 9600; 
-const int   CONTROL_PERIOD     = 10;
-const long  TIME_SAMPLE        = 50000;
+const long   BAUD_RATE         = 115200; 
+const int   CONTROL_PERIOD     = 20;
+const long  TIME_SAMPLE        = 25000;
 const float DELTA_T            = (TIME_SAMPLE * CONTROL_PERIOD)/(1000.0*1000.0);
 const float GIRO_MAX           = ROTACION_VOLANTE/2;
 const float GIRO_MIN           = 2.0;
@@ -36,13 +36,15 @@ const int   VOLANTE_CENTRADO   = 4;
 const float GIRO_LEVE          = PASO_VOLANTE * 3.0;
 const float REVERSA_MIN        = 30.0;
 const float REVERSA_MAX        = 40.0;
-const float ULTR_LIMITE        = 50.0;
-const int   N_ULTR_SENSOR      =    2;
-const int   ULTR_PERIOD        =    2;
+const float ULTR_LIMITE        = 20.0;
+const int   N_ULTR_SENSOR      =    3;
+const int   ULTR_PERIOD        =    4;
 const int   ULTRA_TRIGER       =   A1;
 const int   ULTRA_ECHO         =   18;
 const int   ULTRB_TRIGER       =   A0;
-const int   ULTRB_ECHO         =   19;
+const int   ULTRB_ECHO         =   17;
+const int   ULTRC_TRIGER       =   A2;//Check
+const int   ULTRC_ECHO         =   16;//Check
 const int   MODO_ULTRASONIDO   =    1;
 const int   MUESTRAS_DETECCION =    5;
 const int   LIMITE_MUESTRAS    =    3;
@@ -64,6 +66,9 @@ int flag_rotacion            = 0;
 int flag_linea_recta         = 0;
 int flag_giro_leve           = 0;
 int flag_reversa_corta       = 0;
+int flag_ultrasonido         = 0;
+int flag_ultr_request        = 0;
+int ultr_flag_start          = 0;
 
 // Variables de Comunicacion Serie
 unsigned char  SerRx;
@@ -117,7 +122,7 @@ double distancia_abs          = 0.0;
 double distancia_abs_d        = 0.0;
 double kd                     = 1.0;
 double ki                     = 0.20;
-double kp                     = 20.0;
+double kp                     = 10.0;
 
 // Variables Ultrasonido
 
@@ -137,8 +142,10 @@ void setup()
   // TRISX
   pinMode(ULTRA_TRIGER,OUTPUT);
   pinMode(ULTRB_TRIGER,OUTPUT);
+  pinMode(ULTRC_TRIGER,OUTPUT);
   digitalWrite(ULTRA_TRIGER,LOW);
   digitalWrite(ULTRB_TRIGER,LOW);
+  digitalWrite(ULTRC_TRIGER,LOW);
 
   // Serial Comunication
   Serial.begin(BAUD_RATE);               // Inicio la transmision serie
@@ -148,12 +155,10 @@ void setup()
   analogWrite(PWM1, 127);                // PWM1 50% duty
   analogWrite(PWM2, 127);                // PWM2 50% duty
 
+
   // Interrupciones externas (Pines 18,19,2,3)
   attachInterrupt(digitalPinToInterrupt(INTE0), ISR_INTE0,    CHANGE); // Interrupcion externa en pin 2 por cambio de nivel
   attachInterrupt(digitalPinToInterrupt(INTE1), ISR_INTE1,    CHANGE); // Interrupción externa en pin 3 por cambio de nivel
-  attachInterrupt(digitalPinToInterrupt(ULTRA_ECHO),ISR_ECHOA_INT, CHANGE); 
-  attachInterrupt(digitalPinToInterrupt(ULTRB_ECHO),ISR_ECHOB_INT, CHANGE); 
-
   // Acelerometro Inicializacion y calibracion
   init_MPU6050();
   calibrar_MPU6050(offset);
@@ -162,7 +167,7 @@ void setup()
   // Reset Sensor ultrasonido variables
   for (int i = 0; i < N_ULTR_SENSOR; i++)
   {
-    ultr_distance           [i] = 0.0;
+    ultr_distance           [i] = 100.0;
     contador_obstaculo      [i] =   0;
     ciclo_deteccion         [i] =   0;
     flag_objeto_detectado   [i] =   0;
@@ -170,6 +175,8 @@ void setup()
   // Centrar volante
   centrar_volante();
   delay(5000);
+  
+  attachInterrupt(digitalPinToInterrupt(ULTRA_ECHO),ISR_ECHOA_INT, CHANGE); 
   //Serial.println("START");  
 }
 
@@ -223,15 +230,17 @@ void loop()
     dtostrf((distancia_objeto[0])  ,6,2,buff[1]);
     dtostrf((distancia_objeto[1])  ,6,2,buff[2]);
 
-    sprintf(mystring, "$ %s %s %s !", buff[0], buff[1], buff[2]);
+    sprintf(mystring, "1 %s %s %s !", buff[0], buff[1], buff[2]);
     send_uart(mystring, respuestaid_plan);
     objeto_detectado = 0;
   }
+  
   if(completar_movimiento == 3)
   {
     if(objeto_detectado == 2)
     {
-      mover(int(distancia_temp[0]), 0.3, 0);
+      //mover(int(distancia_temp[0]), 0.3, 0);
+      mover(30, 0.3, 0);
     }
     else
     {
@@ -293,7 +302,37 @@ void loop()
     }
      flag_cntrl_vel = 0;
   }
-  
+
+  if(flag_ultrasonido == 1)
+  {
+    if (flag_ultr_request == 0)
+    {      
+      Serial.println("TRIGGER 0");
+      digitalWrite(ULTRA_TRIGER,HIGH); //se envia el pulso ultrasonico
+      delayMicroseconds(10);//El pulso debe tener una duracion minima de 20 microsegundos // FIX ME (Estaba en 20)
+      digitalWrite(ULTRA_TRIGER,LOW); //Ambas lineas son por estabilizacion del sensor
+      flag_ultr_request = 1;
+      flag_ultrasonido = 0;
+    }
+    else if (flag_ultr_request == 1)
+    {
+      Serial.println("TRIGGER 1");
+     digitalWrite(ULTRB_TRIGER,HIGH); //se envia el pulso ultrasonico
+     delayMicroseconds(10);//El pulso debe tener una duracion minima de 20 microsegundos // FIX ME (Estaba en 20)
+     digitalWrite(ULTRB_TRIGER,LOW); //Ambas lineas son por estabilizacion del sensor      
+     flag_ultr_request = 2;
+     flag_ultrasonido = 0;
+    }
+    else
+    {
+     digitalWrite(ULTRC_TRIGER,HIGH); //se envia el pulso ultrasonico
+     delayMicroseconds(10);//El pulso debe tener una duracion minima de 20 microsegundos // FIX ME (Estaba en 20)
+     digitalWrite(ULTRC_TRIGER,LOW); //Ambas lineas son por estabilizacion del sensor      
+     flag_ultr_request = 0;
+     flag_ultrasonido = 0;
+    }
+  }
+
   if (Serial.available() > 0)
     receive_uart();
 }

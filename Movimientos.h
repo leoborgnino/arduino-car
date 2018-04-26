@@ -50,11 +50,11 @@ extern double      kd;
 extern double      ki;
 extern double      kp;
 
-extern double ultr_distance[2];
-extern double distancia_objeto[2];
-extern int    contador_obstaculo[2];
-extern int    ciclo_deteccion[2];
-extern int    flag_objeto_detectado[2];
+extern double ultr_distance[3];
+extern double distancia_objeto[3];
+extern int    contador_obstaculo[3];
+extern int    ciclo_deteccion[3];
+extern int    flag_objeto_detectado[3];
 
 /************************************************************************************************************************************
  * Función para mover el vehículo. Se deben pasar como parámetros la distancia a recorrer, la velocidad de los motores y el sentido *
