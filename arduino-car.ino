@@ -1,3 +1,4 @@
+#include <TimerThree.h>
 #include <TimerOne.h>
 #include <Wire.h>
 
@@ -10,9 +11,10 @@
 
 const int   INTE0              = 2;
 const int   INTE1              = 3;
-const long   BAUD_RATE         = 115200; 
+const long  BAUD_RATE         = 115200; 
 const int   CONTROL_PERIOD     = 20;
 const long  TIME_SAMPLE        = 25000;
+const long  TIME_SAMPLE2       = 300;
 const float DELTA_T            = (TIME_SAMPLE * CONTROL_PERIOD)/(1000.0*1000.0);
 const float GIRO_MAX           = ROTACION_VOLANTE/2;
 const float GIRO_MIN           = 2.0;
@@ -138,6 +140,10 @@ void setup()
   // Configuracion Timer 1
   Timer1.initialize(double(TIME_SAMPLE)); // WARNING: Depende de la versión del compilador  // Dispara cada TIME_SAMPLE ms
   Timer1.attachInterrupt(ISR_Timer);     // Activa la interrupcion y la asocia a ISR_Timer
+
+  // Configuracion Timer 1
+  Timer3.initialize(double(TIME_SAMPLE2));
+  Timer3.attachInterrupt(ISR_Timer3);
 
   // TRISX
   pinMode(ULTRA_TRIGER,OUTPUT);
@@ -307,7 +313,7 @@ void loop()
   {
     if (flag_ultr_request == 0)
     {      
-      Serial.println("TRIGGER 0");
+      //Serial.println("TRIGGER 0");
       digitalWrite(ULTRA_TRIGER,HIGH); //se envia el pulso ultrasonico
       delayMicroseconds(10);//El pulso debe tener una duracion minima de 20 microsegundos // FIX ME (Estaba en 20)
       digitalWrite(ULTRA_TRIGER,LOW); //Ambas lineas son por estabilizacion del sensor
@@ -316,7 +322,7 @@ void loop()
     }
     else if (flag_ultr_request == 1)
     {
-      Serial.println("TRIGGER 1");
+     //Serial.println("TRIGGER 1");
      digitalWrite(ULTRB_TRIGER,HIGH); //se envia el pulso ultrasonico
      delayMicroseconds(10);//El pulso debe tener una duracion minima de 20 microsegundos // FIX ME (Estaba en 20)
      digitalWrite(ULTRB_TRIGER,LOW); //Ambas lineas son por estabilizacion del sensor      

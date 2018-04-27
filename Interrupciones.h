@@ -49,19 +49,19 @@ extern long        ultr_start_time[3];
 
 int contador_ultrasonido = 0;
 
-void ISR_Timer()
+void ISR_Timer3()
 {
-
  if((digitalRead(ULTRB_ECHO)) && (ultr_flag_start == 0) && (flag_ultr_request == 2))
  {
-  Serial.println("ULTRB Start");
+  //Serial.println("ULTRB Start");
   ultr_start_time[1] = micros();
   ultr_flag_start = 1;
  }
- else if ( (ultr_flag_start == 1) && (flag_ultr_request == 2))
+ else if ( (ultr_flag_start == 1) && (flag_ultr_request == 2) && (digitalRead(ULTRB_ECHO) == 0))
  {
-  Serial.println("ULTRB End");
+  //Serial.println("ULTRB End");
   ultr_distance[1] = (micros()-ultr_start_time[1])/58.0;
+  Serial.println(ultr_distance[1]);
   if(objeto_detectado == 0)
     filtrar_datos_ultrasonido(1);
   ultr_flag_start = 0;
@@ -69,14 +69,15 @@ void ISR_Timer()
 
 if((digitalRead(ULTRC_ECHO)) && (ultr_flag_start == 0) && (flag_ultr_request == 0))
  {
-  Serial.println("ULTRC Start");
+  //Serial.println("ULTRC Start");
   ultr_start_time[2] = micros();
   ultr_flag_start = 1;
  }
- else if ( (ultr_flag_start == 1) && (flag_ultr_request == 0))
+ else if ( (ultr_flag_start == 1) && (flag_ultr_request == 0) && (digitalRead(ULTRC_ECHO) == 0))
  {
-  Serial.println("ULTRC End");
-  ultr_distance[2] = (micros()-ultr_start_time[1])/58.0;
+  //Serial.println("ULTRC End");
+  ultr_distance[2] = (micros()-ultr_start_time[2])/58.0;
+  Serial.println(ultr_distance[2]);
   ultr_flag_start = 0;
  }  
   // Se evalua si hay un objeto cercano
@@ -85,7 +86,12 @@ if((digitalRead(ULTRC_ECHO)) && (ultr_flag_start == 0) && (flag_ultr_request == 
     objeto_detectado = MODO_ULTRASONIDO;
     distancia_objeto[0] = distancia_objeto[0] + distancia_temp[0];
     distancia_objeto[1] = distancia_objeto[1] + distancia_temp[0];
-  }
+  } 
+  
+  
+}
+void ISR_Timer()
+{
   // Condiciones de corte volante
   
   if((distancia_temp[1] >= grados_volante_max) && (flag_girar_volante == 1))
