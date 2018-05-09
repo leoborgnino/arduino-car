@@ -12,8 +12,8 @@
 const int   INTE0              = 2;
 const int   INTE1              = 3;
 const long  BAUD_RATE         = 115200; 
-const int   CONTROL_PERIOD     = 20;
-const long  TIME_SAMPLE        = 25000;
+const int   CONTROL_PERIOD     = 10;
+const long  TIME_SAMPLE        = 50000;
 const long  TIME_SAMPLE2       = 300;
 const float DELTA_T            = (TIME_SAMPLE * CONTROL_PERIOD)/(1000.0*1000.0);
 const float GIRO_MAX           = ROTACION_VOLANTE/2;
@@ -42,14 +42,14 @@ const float ULTR_LIMITE        = 20.0;
 const int   N_ULTR_SENSOR      =    3;
 const int   ULTR_PERIOD        =    4;
 const int   ULTRA_TRIGER       =   A1;
-const int   ULTRA_ECHO         =   18;
+const int   ULTRA_ECHO         =   A3;
 const int   ULTRB_TRIGER       =   A0;
 const int   ULTRB_ECHO         =   17;
 const int   ULTRC_TRIGER       =   A2;//Check
 const int   ULTRC_ECHO         =   16;//Check
 const int   MODO_ULTRASONIDO   =    1;
-const int   MUESTRAS_DETECCION =    5;
-const int   LIMITE_MUESTRAS    =    3;
+const int   MUESTRAS_DETECCION =    3;
+const int   LIMITE_MUESTRAS    =    2;
 
 /********************************
  *    Variables Globales        *
@@ -77,7 +77,7 @@ unsigned char  SerRx;
 int   data_len_rx         = 0;
 unsigned char  data_rec[10];
 char  mystring[100];
-char  buff[10][7];
+char  buff[11][7];
 float datos[7];
 
 int  respuestaid_mpu      =  0;
@@ -130,9 +130,9 @@ double kp                     = 10.0;
 
 double ultr_distance[N_ULTR_SENSOR];
 double distancia_objeto[N_ULTR_SENSOR];
-int    contador_obstaculo[N_ULTR_SENSOR];
+int    contador_obstaculo[N_ULTR_SENSOR][MUESTRAS_DETECCION];
 long   ultr_start_time[N_ULTR_SENSOR];
-int    ciclo_deteccion[N_ULTR_SENSOR];
+int    contador_deteccion[N_ULTR_SENSOR];
 int    flag_objeto_detectado[N_ULTR_SENSOR];
 
 void setup()
@@ -170,19 +170,24 @@ void setup()
   calibrar_MPU6050(offset);
   obtener_datos(datos, offset);
 
+  for(int i = 0; i < N_ULTR_SENSOR; i++)
+  {
+    for(int j = 0; j < MUESTRAS_DETECCION; j++)
+    {
+      contador_obstaculo[i][j] =   0;
+    }
+  }
   // Reset Sensor ultrasonido variables
   for (int i = 0; i < N_ULTR_SENSOR; i++)
   {
     ultr_distance           [i] = 100.0;
-    contador_obstaculo      [i] =   0;
-    ciclo_deteccion         [i] =   0;
+    contador_deteccion         [i] =   0;
     flag_objeto_detectado   [i] =   0;
   }
   // Centrar volante
   centrar_volante();
   delay(5000);
   
-  attachInterrupt(digitalPinToInterrupt(ULTRA_ECHO),ISR_ECHOA_INT, CHANGE); 
   //Serial.println("START");  
 }
 
@@ -196,15 +201,16 @@ void loop()
   if ((data_rec[1] == 'g') && (flag_accion))
   {
     respuestaid_mpu = data_rec[0];
-    obtener_datos(datos, offset);
+    //obtener_datos(datos, offset);
     for(int i=0;i<6;i++)
       dtostrf(datos[i],6,2,buff[i]);
     dtostrf(valor_giro_total,6,2,buff[6]);
     dtostrf((velocidad_abs)  ,6,2,buff[7]);
     dtostrf((ultr_distance[0])  ,6,2,buff[8]);
     dtostrf((ultr_distance[1])  ,6,2,buff[9]);
+    dtostrf((ultr_distance[2])  ,6,2,buff[10]);
 
-    sprintf(mystring, "%s %s %s %s %s %s %s %s %s %s !", buff[0], buff[1], buff[2], buff[3], buff[4], buff[5],buff[6],buff[7],buff[8],buff[9]);
+    sprintf(mystring, "%s %s %s %s %s %s %s %s %s %s %s !", buff[0], buff[1], buff[2], buff[3], buff[4], buff[5],buff[6],buff[7],buff[8],buff[9],buff[10]);
     send_uart(mystring, respuestaid_mpu);
     flag_accion = 0;
   }

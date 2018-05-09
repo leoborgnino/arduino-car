@@ -17,6 +17,7 @@ extern const float DELTA_T;
 extern const float ULTR_LIMITE;
 extern const int   MUESTRAS_DETECCION;
 extern const int   LIMITE_MUESTRAS;
+extern const int   N_ULTR_SENSOR;
 
 extern int         flag_girar_volante;
 extern int         flag_mover;
@@ -52,8 +53,8 @@ extern double      kp;
 
 extern double ultr_distance[3];
 extern double distancia_objeto[3];
-extern int    contador_obstaculo[3];
-extern int    ciclo_deteccion[3];
+extern int    contador_obstaculo[3][3];
+extern int    contador_deteccion[3];
 extern int    flag_objeto_detectado[3];
 
 /************************************************************************************************************************************
@@ -176,20 +177,33 @@ double pid_controller(int motor)
 // Solo se considera objeto detectado si mas de la mitad de los datos lo confirman.
 void filtrar_datos_ultrasonido(int indice)
 {
-  ciclo_deteccion[indice]++;
-  if (ultr_distance[indice] < ULTR_LIMITE)
+  for(int i; i < MUESTRAS_DETECCION; i++)
   {
-    contador_obstaculo[indice]++;
-    distancia_objeto[indice] = ultr_distance[indice];
+     if(i == MUESTRAS_DETECCION -1 )
+     {
+      if(ultr_distance[indice] < ULTR_LIMITE)
+        contador_obstaculo[indice][(MUESTRAS_DETECCION-1) - i] = 1;
+      else
+        contador_obstaculo[indice][(MUESTRAS_DETECCION-1) - i] = 0;
+     }
+     else
+      contador_obstaculo[indice][(MUESTRAS_DETECCION-1) - i] = contador_obstaculo[indice][(MUESTRAS_DETECCION-1) - i - 1];  
   }
-  if(ciclo_deteccion[indice] == MUESTRAS_DETECCION)
+  
+  contador_deteccion[indice] = 0;
+
+  for(int j = 0; j < MUESTRAS_DETECCION; j++)
   {
-    if(contador_obstaculo[indice] >= LIMITE_MUESTRAS)
-      flag_objeto_detectado[indice] = 1;
-    else
-      flag_objeto_detectado[indice] = 0;
-    contador_obstaculo[indice] = 0;
-    ciclo_deteccion[indice] = 0;
+    if(contador_obstaculo[indice][j])
+      contador_deteccion[indice]++;
   }
+
+  if(contador_deteccion[indice] >= LIMITE_MUESTRAS)
+  {
+    flag_objeto_detectado[indice] = 1;
+    distancia_objeto[indice] = ultr_distance[indice];   
+  }
+  else
+    flag_objeto_detectado[indice] = 0;
 }
 
