@@ -181,7 +181,7 @@ void setup()
   for (int i = 0; i < N_ULTR_SENSOR; i++)
   {
     ultr_distance           [i] = 100.0;
-    contador_deteccion         [i] =   0;
+    contador_deteccion      [i] =   0;
     flag_objeto_detectado   [i] =   0;
   }
   // Centrar volante

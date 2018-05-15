@@ -203,7 +203,5 @@ void filtrar_datos_ultrasonido(int indice)
     flag_objeto_detectado[indice] = 1;
     distancia_objeto[indice] = ultr_distance[indice];   
   }
-  else
-    flag_objeto_detectado[indice] = 0;
 }
 
