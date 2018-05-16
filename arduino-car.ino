@@ -1,7 +1,6 @@
 #include <TimerThree.h>
 #include <TimerOne.h>
 #include <Wire.h>
-
 #include "MPU6050.h"
 #include "Interrupciones.h"
 
@@ -12,13 +11,13 @@
 const int   INTE0              = 2;
 const int   INTE1              = 3;
 const long  BAUD_RATE         = 115200; 
-const int   CONTROL_PERIOD     = 10;
-const long  TIME_SAMPLE        = 50000;
-const long  TIME_SAMPLE2       = 300;
+const int   CONTROL_PERIOD     = 20;
+const long  TIME_SAMPLE        = 25000;
+const long  TIME_SAMPLE2       = 200;
 const float DELTA_T            = (TIME_SAMPLE * CONTROL_PERIOD)/(1000.0*1000.0);
 const float GIRO_MAX           = ROTACION_VOLANTE/2;
-const float GIRO_MIN           = 2.0;
-const float GIRO_MIN_ITER      = 5.0;
+const float GIRO_MIN           = 5.0;
+const float GIRO_MIN_ITER      = 10.0;
 const float RUIDO_ROTACION     = 0.05;
 const int   MICRO_ADDR         = 10;
 const float PPV                = 36.0;
@@ -40,7 +39,7 @@ const float REVERSA_MIN        = 30.0;
 const float REVERSA_MAX        = 40.0;
 const float ULTR_LIMITE        = 20.0;
 const int   N_ULTR_SENSOR      =    3;
-const int   ULTR_PERIOD        =    4;
+const int   ULTR_PERIOD        =    1;
 const int   ULTRA_TRIGER       =   A1;
 const int   ULTRA_ECHO         =   A3;
 const int   ULTRB_TRIGER       =   A0;
@@ -201,7 +200,7 @@ void loop()
   if ((data_rec[1] == 'g') && (flag_accion))
   {
     respuestaid_mpu = data_rec[0];
-    //obtener_datos(datos, offset);
+    obtener_datos(datos, offset);
     for(int i=0;i<6;i++)
       dtostrf(datos[i],6,2,buff[i]);
     dtostrf(valor_giro_total,6,2,buff[6]);

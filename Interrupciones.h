@@ -225,7 +225,7 @@ void ISR_Timer()
     
   // Condiciones de Trigger del ultrasonido
   contador_ultrasonido = (contador_ultrasonido + 1) % ULTR_PERIOD;
-  flag_ultrasonido = (contador_ultrasonido == 1);
+  flag_ultrasonido = (contador_ultrasonido == 0);
 
 
   flag_timer = 1;
