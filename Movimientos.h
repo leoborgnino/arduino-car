@@ -53,7 +53,7 @@ extern double      kp;
 
 extern double ultr_distance[3];
 extern double distancia_objeto[3];
-extern int    contador_obstaculo[3][3];
+extern int    contador_obstaculo[3][4];
 extern int    contador_deteccion[3];
 extern int    flag_objeto_detectado[3];
 

@@ -49,12 +49,12 @@ void send_uart(char* data_send, int respuestaid)
   formlist[5 + data_len] = mod_iheader;
 
   for (int i = 0 ; i < data_len + 6; i++)
-    Serial.write(formlist[i]);
+    Serial1.write(formlist[i]);
 }
 
 void receive_uart()
 {
-  SerRx = Serial.read();
+  SerRx = Serial1.read();
   if ( ( flag_uart == 0 ) && ( (SerRx & 0xE0) == 160) ) //Encontramos el MIT
   {
     flag_uart++;

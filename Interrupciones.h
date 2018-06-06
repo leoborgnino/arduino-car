@@ -92,8 +92,13 @@ if((digitalRead(ULTRC_ECHO)) && (ultr_flag_start == 0) && (flag_ultr_request == 
 void ISR_Timer()
 {
   // Se evalua si hay un objeto cercano adelante
-  if(((flag_objeto_detectado[0])||(flag_objeto_detectado[1])) && (objeto_detectado == 0) && (flag_mover == 1) && (flag_back == 0) && (flag_girar_volante == 0))
+  if(((flag_objeto_detectado[0])||(flag_objeto_detectado[1])) && (objeto_detectado == 0) && (flag_mover == 1) && (flag_back == 0))
   {
+    if(flag_objeto_detectado[0] == 0)
+      Serial.println("Sensor A");
+    else
+      Serial.println("Sensor B");
+      
     flag_objeto_detectado[0] = 0;
     flag_objeto_detectado[1] = 0;
     objeto_detectado = MODO_ULTRASONIDO;
@@ -146,7 +151,11 @@ void ISR_Timer()
   // Condiciones para control PID
   contador_pid = (contador_pid + 1) % CONTROL_PERIOD;
   if(contador_pid == 1)
+  {
     flag_cntrl_vel = 1;
+    Serial.print("SENSOR A: "); Serial.println(flag_objeto_detectado[0]);
+    Serial.print("SENSOR B: "); Serial.println(flag_objeto_detectado[1]);
+  } 
 
   // Condiciones de distancia de desplazamiento
   if ( ((distancia_temp[0] > distancia_max) && (flag_mover == 1)) || ((objeto_detectado == 1) && (flag_mover == 1)) )
@@ -158,16 +167,20 @@ void ISR_Timer()
       
       if(((flag_rotacion == 1) && (fabs(grados_objetivo - valor_giro_total) > GIRO_MIN_ITER)) || (objeto_detectado == 1))
       {
+        Serial.print("ITERACION");
         if(objeto_detectado == 1)
         {
+          Serial.print(" OBJ DETECTADO");
           if(flag_rotacion == 1)
           {
+            Serial.println(" ROTANDO");
             completar_movimiento = 1;
             objeto_detectado = 2;
             flag_reversa_corta = 0;
           }
           else
           {
+            Serial.println(" RECTO");
             completar_movimiento = 3;
             objeto_detectado = 2;
             flag_reversa_corta = 0;
@@ -175,6 +188,7 @@ void ISR_Timer()
         }
         else
         {
+          Serial.println(" COMUN");
           if(fabs(grados_objetivo - valor_giro_total) <= LIMITE_REVERSA)
             flag_reversa_corta = 1;
           else

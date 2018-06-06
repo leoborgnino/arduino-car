@@ -47,8 +47,8 @@ const int   ULTRB_ECHO         =   17;
 const int   ULTRC_TRIGER       =   A2;//Check
 const int   ULTRC_ECHO         =   16;//Check
 const int   MODO_ULTRASONIDO   =    1;
-const int   MUESTRAS_DETECCION =    3;
-const int   LIMITE_MUESTRAS    =    2;
+const int   MUESTRAS_DETECCION =    4;
+const int   LIMITE_MUESTRAS    =    3;
 
 /********************************
  *    Variables Globales        *
@@ -107,7 +107,7 @@ unsigned int distancia_max        = 0;
 float  distancia_temp[2]      = {0.0, 0.0};
 float  velocidad_ref          = 3.0; // Velocidad crucero en m/s
 float  movimiento[2]          = {0.0, 0.0};
-float  vel_inicial            = 40.0;
+float  vel_inicial            = 50.0;
 float  distancia_temp_d[2]    = {0.0, 0.0};
 float  p_controller[2]        = {0.0, 0.0};
 float  d_controller[2]        = {0.0, 0.0};
@@ -153,7 +153,8 @@ void setup()
   digitalWrite(ULTRC_TRIGER,LOW);
 
   // Serial Comunication
-  Serial.begin(BAUD_RATE);               // Inicio la transmision serie
+  Serial1.begin(BAUD_RATE);               // Inicio la transmision serie
+  Serial.begin(9600);               // Inicio la transmision serie
 
   // PWM Configuration
   TCCR2B = TCCR2B & 0b11111000 | 0x01;   // Establece frecuencia pwm pines 9,10 a 31K
@@ -344,7 +345,7 @@ void loop()
     }
   }
 
-  if (Serial.available() > 0)
+  if (Serial1.available() > 0)
     receive_uart();
 }
 
