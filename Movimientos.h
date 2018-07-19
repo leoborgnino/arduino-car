@@ -54,8 +54,12 @@ extern double      kp;
 extern double ultr_distance[3];
 extern double distancia_objeto[3];
 extern int    contador_obstaculo[3][4];
+extern int    contador_libre[3][4];
 extern int    contador_deteccion[3];
+extern int    contador_no_deteccion[3];
 extern int    flag_objeto_detectado[3];
+extern int    flag_no_objeto_detectado[3];
+
 
 /************************************************************************************************************************************
  * Función para mover el vehículo. Se deben pasar como parámetros la distancia a recorrer, la velocidad de los motores y el sentido *
@@ -91,6 +95,7 @@ void mover(unsigned int distancia, double vlc, int sentido)
   {
     analogWrite(PWM1, 127 + vel_inicial);
     flag_back = 1;
+    flag_rotacion = 0;
   }
   else
   {
@@ -189,17 +194,35 @@ void filtrar_datos_ultrasonido(int indice)
      else
       contador_obstaculo[indice][(MUESTRAS_DETECCION-1) - i] = contador_obstaculo[indice][(MUESTRAS_DETECCION-1) - i - 1];  
   }
+  for(int i; i < MUESTRAS_DETECCION; i++)
+  {
+     if(i == MUESTRAS_DETECCION -1 )
+     {
+      if(ultr_distance[indice] > ULTR_LIMITE)
+        contador_libre[indice][(MUESTRAS_DETECCION-1) - i] = 1;
+      else
+        contador_libre[indice][(MUESTRAS_DETECCION-1) - i] = 0;
+     }
+     else
+      contador_libre[indice][(MUESTRAS_DETECCION-1) - i] = contador_libre[indice][(MUESTRAS_DETECCION-1) - i - 1];  
+  }
   
   contador_deteccion[indice] = 0;
+  contador_no_deteccion[indice] = 0;
 
   for(int j = 0; j < MUESTRAS_DETECCION; j++)
   {
     if(contador_obstaculo[indice][j])
       contador_deteccion[indice]++;
+    if(contador_libre[indice][j])
+      contador_no_deteccion[indice]++;
   }
 
   if(contador_deteccion[indice] >= LIMITE_MUESTRAS)
   {
+    for(int i; i < MUESTRAS_DETECCION; i++)
+      contador_obstaculo[indice][i] = 0; 
+    flag_no_objeto_detectado[indice] = 1;
     flag_objeto_detectado[indice] = 1;
     distancia_objeto[indice] = ultr_distance[indice];   
   }

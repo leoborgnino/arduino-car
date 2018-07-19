@@ -19,7 +19,9 @@ extern const int   ULTRB_ECHO;
 extern const int   ULTRC_TRIGER;
 extern const int   ULTRC_ECHO;
 extern const int   MODO_ULTRASONIDO;
-
+extern const int   ALARM_PERIOD;
+extern const int   N_BEEPS;
+extern const int   PIN_ALARM;
 
 extern int         flag_centrar_vehiculo;
 extern int         flag_cntrl_vel;
@@ -48,9 +50,14 @@ extern double      distancia_objeto[3];
 extern long        ultr_start_time[3];
 
 int contador_ultrasonido = 0;
+int back_exception = 0;
+
+int contador_alarma = 0;
+int flag_alarma = 1;
 
 void ISR_Timer3()
 {
+    
  if((digitalRead(ULTRA_ECHO)) && (ultr_flag_start == 0) && (flag_ultr_request == 1))
  {
   ultr_start_time[0] = micros();
@@ -59,7 +66,8 @@ void ISR_Timer3()
  else if ( (ultr_flag_start == 1) && (flag_ultr_request == 1) && (digitalRead(ULTRA_ECHO) == 0))
  {
   ultr_distance[0] = (micros()-ultr_start_time[0])/58.0;
-  if(objeto_detectado == 0)
+  //Serial.print("Sensor A: ");Serial.println(ultr_distance[0]);
+  if(objeto_detectado == 0 && flag_mover && flag_girar_volante == 0)
     filtrar_datos_ultrasonido(0);
   ultr_flag_start = 0;
  }
@@ -72,32 +80,59 @@ void ISR_Timer3()
  else if ( (ultr_flag_start == 1) && (flag_ultr_request == 2) && (digitalRead(ULTRB_ECHO) == 0))
  {
   ultr_distance[1] = (micros()-ultr_start_time[1])/58.0;
-  if(objeto_detectado == 0)
+  //Serial.print("Sensor B: ");Serial.println(ultr_distance[1]);
+  if(objeto_detectado == 0 && flag_mover && flag_girar_volante == 0)
     filtrar_datos_ultrasonido(1);
   ultr_flag_start = 0;
  }
 
-if((digitalRead(ULTRC_ECHO)) && (ultr_flag_start == 0) && (flag_ultr_request == 0))
+if((digitalRead(ULTRC_ECHO)) && (ultr_flag_start == 0) && (flag_ultr_request == 0) && flag_back)
  {
   ultr_start_time[2] = micros();
   ultr_flag_start = 1;
  }
- else if ( (ultr_flag_start == 1) && (flag_ultr_request == 0) && (digitalRead(ULTRC_ECHO) == 0))
+ else if ( (ultr_flag_start == 1) && (flag_ultr_request == 0) && (digitalRead(ULTRC_ECHO) == 0) && flag_back)
  {
   ultr_distance[2] = (micros()-ultr_start_time[2])/58.0;
   ultr_flag_start = 0;
+  filtrar_datos_ultrasonido(2);
+  Serial.print("DISTANCIA BACK: ");Serial.println(ultr_distance[2]);
  }  
    
 }
 void ISR_Timer()
 {
+    if (flag_alarma)
+  {
+    if (contador_alarma % ALARM_PERIOD == 0)
+      digitalWrite(PIN_ALARM, !digitalRead(PIN_ALARM));
+    if (contador_alarma == 2*N_BEEPS*ALARM_PERIOD)
+      flag_alarma = 0;
+    else
+      contador_alarma++;
+  }
+
+  if (flag_back && flag_objeto_detectado[2] && (back_exception == 0))
+  {
+    Serial.println("BACK EXCEPTION");
+    analogWrite(PWM1, 127);
+    back_exception = 1;
+    flag_objeto_detectado[2] = 0;
+  }
+  else if (flag_no_objeto_detectado[2] && (back_exception == 1))
+  {
+    Serial.println("BACK EXCEPTION RETURN");
+    mover(distancia_max-distancia_temp[0],0.3,0);
+    back_exception = 0;
+  }
+
+  
   // Se evalua si hay un objeto cercano adelante
   if(((flag_objeto_detectado[0])||(flag_objeto_detectado[1])) && (objeto_detectado == 0) && (flag_mover == 1) && (flag_back == 0))
   {
-    if(flag_objeto_detectado[0] == 0)
-      Serial.println("Sensor A");
-    else
-      Serial.println("Sensor B");
+    Serial.println("Objeto Detectado");
+    
+    flag_alarma = 1;
       
     flag_objeto_detectado[0] = 0;
     flag_objeto_detectado[1] = 0;
@@ -109,6 +144,7 @@ void ISR_Timer()
   // Condiciones de corte volante
   if((distancia_temp[1] >= grados_volante_max) && (flag_girar_volante == 1))
   {
+    Serial.println("Entre al corte del volante");
     analogWrite(PWM2, 127);
     flag_girar_volante = 0;
     distancia_temp[1] = 0;
@@ -120,7 +156,7 @@ void ISR_Timer()
       {
         enderezar_volante = 0;
         esperar_volante = 0;
-        send_uart("0 !", respuestaid_plan);
+        send_uart((char*)"0 !", respuestaid_plan);
       }
   }
 
@@ -153,8 +189,6 @@ void ISR_Timer()
   if(contador_pid == 1)
   {
     flag_cntrl_vel = 1;
-    Serial.print("SENSOR A: "); Serial.println(flag_objeto_detectado[0]);
-    Serial.print("SENSOR B: "); Serial.println(flag_objeto_detectado[1]);
   } 
 
   // Condiciones de distancia de desplazamiento
@@ -167,7 +201,7 @@ void ISR_Timer()
       
       if(((flag_rotacion == 1) && (fabs(grados_objetivo - valor_giro_total) > GIRO_MIN_ITER)) || (objeto_detectado == 1))
       {
-        Serial.print("ITERACION");
+        Serial.print("ITERACION: ");
         if(objeto_detectado == 1)
         {
           Serial.print(" OBJ DETECTADO");
@@ -199,6 +233,7 @@ void ISR_Timer()
       }
       else if(flag_rotacion == 1)
       {
+        Serial.println("Enderezar volante");
         enderezar_volante = 1;  
       }
       else if(completar_movimiento == 0)
@@ -206,13 +241,16 @@ void ISR_Timer()
         if(flag_girar_volante == 1)
           esperar_volante = 1;
         else
-          send_uart("0 !", respuestaid_plan);
+          send_uart((char*)"0 !", respuestaid_plan);
       }
 
       if(completar_movimiento == 4)
       {
+        Serial.println("Completar4: ");
         if(objeto_detectado == 2)
         {
+          Serial.println("Entre por objeto detectado");
+          Serial.print(flag_rotacion);
           completar_movimiento = 0;
           objeto_detectado = 3;
         }

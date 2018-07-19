@@ -26,13 +26,13 @@ const float DIST_PULS          = LONG_ARC / PPV;
 const int   LIMITE_DESVIO      = 2;
 const int   PWM1               = 10;//Motor Principal
 const int   PWM2               = 9;//Motor Volante
-const float GIRO_LIMITE        = 40;
 const float LIMITE_REVERSA     = 20;
 const float LIMITE_GIRO        = 10;
 const float ROTACION_VOLANTE   = 52.0 ;
-const int   PULSOS_VOLANTE     = 9;
+const int   PULSOS_VOLANTE     = 11;
 const float PASO_VOLANTE       = ROTACION_VOLANTE / PULSOS_VOLANTE;
-const float GIRO_MOV           = PASO_VOLANTE * 5.0;
+const float GIRO_MOV           = PASO_VOLANTE * 4.0;
+const float GIRO_LIMITE        = PASO_VOLANTE * 4.0;
 const int   VOLANTE_CENTRADO   = 4;
 const float GIRO_LEVE          = PASO_VOLANTE * 3.0;
 const float REVERSA_MIN        = 30.0;
@@ -42,13 +42,17 @@ const int   N_ULTR_SENSOR      =    3;
 const int   ULTR_PERIOD        =    1;
 const int   ULTRA_TRIGER       =   A1;
 const int   ULTRA_ECHO         =   A3;
-const int   ULTRB_TRIGER       =   A0;
+const int   ULTRB_TRIGER       =   A4;
 const int   ULTRB_ECHO         =   17;
 const int   ULTRC_TRIGER       =   A2;//Check
 const int   ULTRC_ECHO         =   16;//Check
 const int   MODO_ULTRASONIDO   =    1;
 const int   MUESTRAS_DETECCION =    4;
 const int   LIMITE_MUESTRAS    =    3;
+const int   PIN_ALARM          =   A8;
+const int   ALARM_PERIOD       =   15;
+const int   N_BEEPS            =    1;
+
 
 /********************************
  *    Variables Globales        *
@@ -129,9 +133,12 @@ double kp                     = 10.0;
 
 double ultr_distance[N_ULTR_SENSOR];
 double distancia_objeto[N_ULTR_SENSOR];
-int    contador_obstaculo[N_ULTR_SENSOR][MUESTRAS_DETECCION];
 long   ultr_start_time[N_ULTR_SENSOR];
+int    contador_obstaculo[N_ULTR_SENSOR][MUESTRAS_DETECCION];
+int    contador_libre[N_ULTR_SENSOR][MUESTRAS_DETECCION];
 int    contador_deteccion[N_ULTR_SENSOR];
+int    contador_no_deteccion[N_ULTR_SENSOR];
+int    flag_no_objeto_detectado[N_ULTR_SENSOR];
 int    flag_objeto_detectado[N_ULTR_SENSOR];
 
 void setup()
@@ -148,6 +155,7 @@ void setup()
   pinMode(ULTRA_TRIGER,OUTPUT);
   pinMode(ULTRB_TRIGER,OUTPUT);
   pinMode(ULTRC_TRIGER,OUTPUT);
+  pinMode(PIN_ALARM,OUTPUT);
   digitalWrite(ULTRA_TRIGER,LOW);
   digitalWrite(ULTRB_TRIGER,LOW);
   digitalWrite(ULTRC_TRIGER,LOW);
@@ -188,7 +196,10 @@ void setup()
   centrar_volante();
   delay(5000);
   
-  //Serial.println("START");  
+  Serial.println("START");  
+
+  //mover(100,0.1,0);
+ 
 }
 
 /**                                                                                                                                                                  
@@ -202,15 +213,17 @@ void loop()
   {
     respuestaid_mpu = data_rec[0];
     obtener_datos(datos, offset);
-    for(int i=0;i<6;i++)
+    //for(int i=0;i<6;i++)
+    for(int i=0;i<3;i++)
       dtostrf(datos[i],6,2,buff[i]);
-    dtostrf(valor_giro_total,6,2,buff[6]);
-    dtostrf((velocidad_abs)  ,6,2,buff[7]);
-    dtostrf((ultr_distance[0])  ,6,2,buff[8]);
-    dtostrf((ultr_distance[1])  ,6,2,buff[9]);
-    dtostrf((ultr_distance[2])  ,6,2,buff[10]);
+    //dtostrf(valor_giro_total,6,2,buff[6]);
+    //dtostrf((velocidad_abs)  ,6,2,buff[7]);
+    //dtostrf((ultr_distance[0])  ,6,2,buff[8]);
+    //dtostrf((ultr_distance[1])  ,6,2,buff[9]);
+    //dtostrf((ultr_distance[2])  ,6,2,buff[10]);
 
-    sprintf(mystring, "%s %s %s %s %s %s %s %s %s %s %s !", buff[0], buff[1], buff[2], buff[3], buff[4], buff[5],buff[6],buff[7],buff[8],buff[9],buff[10]);
+    //sprintf(mystring, "%s %s %s %s %s %s %s %s %s %s %s !", buff[0], buff[1], buff[2], buff[3], buff[4], buff[5],buff[6],buff[7],buff[8],buff[9],buff[10]);
+    sprintf(mystring, "%s %s %s !", buff[0], buff[1], buff[2]);
     send_uart(mystring, respuestaid_mpu);
     flag_accion = 0;
   }
@@ -238,19 +251,23 @@ void loop()
 
   if(objeto_detectado == 3)
   {
+    objeto_detectado = 0;
+    Serial.println("Ya me acomode. Informando objeto");
+    Serial.println(flag_rotacion);
     dtostrf(valor_giro_total,6,2,buff[0]);
     dtostrf((distancia_objeto[0])  ,6,2,buff[1]);
     dtostrf((distancia_objeto[1])  ,6,2,buff[2]);
 
     sprintf(mystring, "1 %s %s %s !", buff[0], buff[1], buff[2]);
     send_uart(mystring, respuestaid_plan);
-    objeto_detectado = 0;
   }
   
   if(completar_movimiento == 3)
-  {
+  { Serial.print("Completar Movimiento3: ");
     if(objeto_detectado == 2)
     {
+      Serial.print("Entre por Objeto detectado");
+      Serial.print(flag_rotacion);
       //mover(int(distancia_temp[0]), 0.3, 0);
       mover(30, 0.3, 0);
     }
