@@ -52,6 +52,7 @@ const int   LIMITE_MUESTRAS    =    3;
 const int   PIN_ALARM          =   A8;
 const int   ALARM_PERIOD       =   15;
 const int   N_BEEPS            =    1;
+const int   SATURACION_INTEGRADOR = 30;
 
 
 /********************************
