@@ -116,6 +116,7 @@ void ISR_Timer()
   {
     Serial.println("BACK EXCEPTION");
     analogWrite(PWM1, 127);
+    flag_cntrl_vel = 0;
     back_exception = 1;
     flag_objeto_detectado[2] = 0;
   }
@@ -163,6 +164,9 @@ void ISR_Timer()
   // Condiciones de corte de grados a rotar
   grados_por_rotar = grados_objetivo - valor_giro_total;
 
+  //if ((fabs(grados_por_rotar) > GIRO_MIN) && (flag_rotacion == 0) && (flag_mover == 1))
+  //  girar();
+
   if (((fabs(grados_por_rotar) < GIRO_MIN) && (flag_rotacion == 1)) || completar_movimiento == 1 || enderezar_volante == 1)
     {
       if(completar_movimiento == 1)
@@ -186,7 +190,7 @@ void ISR_Timer()
 
   // Condiciones para control PID
   contador_pid = (contador_pid + 1) % CONTROL_PERIOD;
-  if(contador_pid == 1)
+  if(contador_pid == 1 && (back_exception == 0))
   {
     flag_cntrl_vel = 1;
   } 
@@ -268,8 +272,8 @@ void ISR_Timer()
     }
     
   // Condiciones de Trigger del ultrasonido
-  contador_ultrasonido = (contador_ultrasonido + 1) % ULTR_PERIOD;
-  flag_ultrasonido = (contador_ultrasonido == 0);
+  //contador_ultrasonido = (contador_ultrasonido + 1) % ULTR_PERIOD;
+  flag_ultrasonido = 1;
 
 
   flag_timer = 1;

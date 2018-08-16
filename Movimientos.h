@@ -18,6 +18,7 @@ extern const float ULTR_LIMITE;
 extern const int   MUESTRAS_DETECCION;
 extern const int   LIMITE_MUESTRAS;
 extern const int   N_ULTR_SENSOR;
+extern const float   SATURACION_INTEGRADOR;
 
 extern int         flag_girar_volante;
 extern int         flag_mover;
@@ -53,8 +54,8 @@ extern double      kp;
 
 extern double ultr_distance[3];
 extern double distancia_objeto[3];
-extern int    contador_obstaculo[3][4];
-extern int    contador_libre[3][4];
+extern int    contador_obstaculo[3][3];
+extern int    contador_libre[3][3];
 extern int    contador_deteccion[3];
 extern int    contador_no_deteccion[3];
 extern int    flag_objeto_detectado[3];
@@ -85,7 +86,7 @@ void centrar_volante()
   analogWrite(PWM2,50);
   delay(4000);
   analogWrite(PWM2, 127);
-  doblar_volante(GIRO_MOV, 0);
+  doblar_volante(GIRO_MOV+1, 0);
   posicion_volante = VOLANTE_CENTRADO;
 }
 
@@ -167,13 +168,17 @@ double pid_controller(int motor)
 
   p_controller[motor]  = kp * error;
   i_controller[motor] += ki * error * DELTA_T;
+
+  if (i_controller[motor] >= SATURACION_INTEGRADOR)
+    i_controller[motor] = SATURACION_INTEGRADOR;
+  
   d_controller[motor]  = (kd * (error - prev_error[motor])) / DELTA_T;
   prev_error[motor]    = error;
   pid_contr      = p_controller[motor] + i_controller[motor] + d_controller[motor];
   //pid_contr      = p_controller[motor];
   movimiento[motor]    += pid_contr;
-  if(movimiento[motor] > 110.0)
-      movimiento[motor] = 110.0;
+  if(movimiento[motor] > 60.0)
+      movimiento[motor] = 60.0;
    
   return movimiento[motor];
 }
@@ -222,9 +227,17 @@ void filtrar_datos_ultrasonido(int indice)
   {
     for(int i; i < MUESTRAS_DETECCION; i++)
       contador_obstaculo[indice][i] = 0; 
-    flag_no_objeto_detectado[indice] = 1;
+    flag_no_objeto_detectado[indice] = 0;
     flag_objeto_detectado[indice] = 1;
     distancia_objeto[indice] = ultr_distance[indice];   
+  }
+
+  if(contador_no_deteccion[indice] >= LIMITE_MUESTRAS)
+  {
+    for(int i; i < MUESTRAS_DETECCION; i++)
+      contador_libre[indice][i] = 0; 
+    flag_no_objeto_detectado[indice] = 1;
+    flag_objeto_detectado[indice] = 0;  
   }
 }
 

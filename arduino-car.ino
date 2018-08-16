@@ -35,9 +35,9 @@ const float GIRO_MOV           = PASO_VOLANTE * 4.0;
 const float GIRO_LIMITE        = PASO_VOLANTE * 4.0;
 const int   VOLANTE_CENTRADO   = 4;
 const float GIRO_LEVE          = PASO_VOLANTE * 3.0;
-const float REVERSA_MIN        = 30.0;
+const float REVERSA_MIN        = 45.0;
 const float REVERSA_MAX        = 40.0;
-const float ULTR_LIMITE        = 20.0;
+const float ULTR_LIMITE        = 40.0;
 const int   N_ULTR_SENSOR      =    3;
 const int   ULTR_PERIOD        =    1;
 const int   ULTRA_TRIGER       =   A1;
@@ -47,11 +47,12 @@ const int   ULTRB_ECHO         =   17;
 const int   ULTRC_TRIGER       =   A2;//Check
 const int   ULTRC_ECHO         =   16;//Check
 const int   MODO_ULTRASONIDO   =    1;
-const int   MUESTRAS_DETECCION =    4;
-const int   LIMITE_MUESTRAS    =    3;
+const int   MUESTRAS_DETECCION =    3;
+const int   LIMITE_MUESTRAS    =    2;
 const int   PIN_ALARM          =   A8;
 const int   ALARM_PERIOD       =   15;
 const int   N_BEEPS            =    1;
+const float SATURACION_INTEGRADOR = 30.0;
 
 
 /********************************
@@ -111,7 +112,7 @@ unsigned int distancia_max        = 0;
 float  distancia_temp[2]      = {0.0, 0.0};
 float  velocidad_ref          = 3.0; // Velocidad crucero en m/s
 float  movimiento[2]          = {0.0, 0.0};
-float  vel_inicial            = 50.0;
+float  vel_inicial            = 55.0;
 float  distancia_temp_d[2]    = {0.0, 0.0};
 float  p_controller[2]        = {0.0, 0.0};
 float  d_controller[2]        = {0.0, 0.0};
@@ -216,14 +217,14 @@ void loop()
     //for(int i=0;i<6;i++)
     for(int i=0;i<3;i++)
       dtostrf(datos[i],6,2,buff[i]);
-    //dtostrf(valor_giro_total,6,2,buff[6]);
-    //dtostrf((velocidad_abs)  ,6,2,buff[7]);
+    dtostrf(valor_giro_total,6,2,buff[3]);
+    dtostrf((velocidad_abs)  ,6,2,buff[4]);
     //dtostrf((ultr_distance[0])  ,6,2,buff[8]);
     //dtostrf((ultr_distance[1])  ,6,2,buff[9]);
     //dtostrf((ultr_distance[2])  ,6,2,buff[10]);
 
     //sprintf(mystring, "%s %s %s %s %s %s %s %s %s %s %s !", buff[0], buff[1], buff[2], buff[3], buff[4], buff[5],buff[6],buff[7],buff[8],buff[9],buff[10]);
-    sprintf(mystring, "%s %s %s !", buff[0], buff[1], buff[2]);
+    sprintf(mystring, "%s %s %s %s %s !", buff[0], buff[1], buff[2],buff[3],buff[4]);
     send_uart(mystring, respuestaid_mpu);
     flag_accion = 0;
   }
@@ -269,7 +270,7 @@ void loop()
       Serial.print("Entre por Objeto detectado");
       Serial.print(flag_rotacion);
       //mover(int(distancia_temp[0]), 0.3, 0);
-      mover(30, 0.3, 0);
+      mover(40, 0.3, 0);
     }
     else
     {
