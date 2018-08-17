@@ -108,6 +108,7 @@ int  sentido_temp         = 0;
 int  grados_volante_max   = 0;
 int  objeto_detectado     = 0;
 unsigned int distancia_max        = 0;
+unsigned int distancia_shifted = 0;
 
 float  distancia_temp[2]      = {0.0, 0.0};
 float  velocidad_ref          = 3.0; // Velocidad crucero en m/s
@@ -219,12 +220,12 @@ void loop()
       dtostrf(datos[i],6,2,buff[i]);
     dtostrf(valor_giro_total,6,2,buff[3]);
     dtostrf((velocidad_abs)  ,6,2,buff[4]);
-    //dtostrf((ultr_distance[0])  ,6,2,buff[8]);
-    //dtostrf((ultr_distance[1])  ,6,2,buff[9]);
+    dtostrf((ultr_distance[0])  ,6,2,buff[5]);
+    dtostrf((ultr_distance[1])  ,6,2,buff[6]);
     //dtostrf((ultr_distance[2])  ,6,2,buff[10]);
 
     //sprintf(mystring, "%s %s %s %s %s %s %s %s %s %s %s !", buff[0], buff[1], buff[2], buff[3], buff[4], buff[5],buff[6],buff[7],buff[8],buff[9],buff[10]);
-    sprintf(mystring, "%s %s %s %s %s !", buff[0], buff[1], buff[2],buff[3],buff[4]);
+    sprintf(mystring, "%s %s %s %s %s %s %s!", buff[0], buff[1], buff[2],buff[3],buff[4],buff[5],buff[6]);
     send_uart(mystring, respuestaid_mpu);
     flag_accion = 0;
   }
@@ -240,13 +241,14 @@ void loop()
   {
     respuestaid_plan = data_rec[0];
     
-    if(data_rec[6])
-      grados_objetivo = data_rec[5] * (-1.0);
+    if(data_rec[7])
+      grados_objetivo = data_rec[6] * (-1.0);
     else
-      grados_objetivo = data_rec[5] * 1.0;
-      
+      grados_objetivo = data_rec[6] * 1.0;
+
+    distancia_shifted = data_rec[2] + data_rec[3]*256;
     girar();
-    mover(data_rec[2],data_rec[3]/100.0, data_rec[4]);
+    mover(distancia_shifted,data_rec[4]/100.0, data_rec[5]);
     flag_accion = 0;
   }
 
