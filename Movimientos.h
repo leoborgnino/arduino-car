@@ -171,7 +171,7 @@ double pid_controller(int motor)
 
   if (i_controller[motor] >= SATURACION_INTEGRADOR)
     i_controller[motor] = SATURACION_INTEGRADOR;
-  
+
   d_controller[motor]  = (kd * (error - prev_error[motor])) / DELTA_T;
   prev_error[motor]    = error;
   pid_contr      = p_controller[motor] + i_controller[motor] + d_controller[motor];
@@ -203,7 +203,7 @@ void filtrar_datos_ultrasonido(int indice)
   {
      if(i == MUESTRAS_DETECCION -1 )
      {
-      if(ultr_distance[indice] > ULTR_LIMITE)
+      if(ultr_distance[indice] >= ULTR_LIMITE)
         contador_libre[indice][(MUESTRAS_DETECCION-1) - i] = 1;
       else
         contador_libre[indice][(MUESTRAS_DETECCION-1) - i] = 0;
@@ -229,7 +229,14 @@ void filtrar_datos_ultrasonido(int indice)
       contador_obstaculo[indice][i] = 0; 
     flag_no_objeto_detectado[indice] = 0;
     flag_objeto_detectado[indice] = 1;
-    distancia_objeto[indice] = ultr_distance[indice];   
+    distancia_objeto[indice] = ultr_distance[indice];
+  }
+
+  if(contador_no_deteccion[indice] >= LIMITE_MUESTRAS)
+  {
+    for(int i; i < MUESTRAS_DETECCION; i++)
+      contador_libre[indice][i] = 0; 
+    flag_no_objeto_detectado[indice] = 1;
   }
 
   if(contador_no_deteccion[indice] >= LIMITE_MUESTRAS)
