@@ -52,7 +52,7 @@ extern double      kd;
 extern double      ki;
 extern double      kp;
 
-extern double ultr_distance[3];
+extern float ultr_distance[3];
 extern double distancia_objeto[3];
 extern int    contador_obstaculo[3][3];
 extern int    contador_libre[3][3];

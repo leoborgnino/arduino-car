@@ -23,6 +23,7 @@ extern const int   ALARM_PERIOD;
 extern const int   N_BEEPS;
 extern const int   PIN_ALARM;
 
+extern double velocidad_abs;
 extern int         flag_centrar_vehiculo;
 extern int         flag_cntrl_vel;
 extern int         flag_back;
@@ -45,7 +46,7 @@ extern float       grados_por_rotar;
 extern float       centrar_vehiculo;
 extern double      distancia_abs;
 
-extern double      ultr_distance[3];
+extern float      ultr_distance[3];
 extern double      distancia_objeto[3];
 extern long        ultr_start_time[3];
 
@@ -102,6 +103,9 @@ if((digitalRead(ULTRC_ECHO)) && (ultr_flag_start == 0) && (flag_ultr_request == 
 }
 void ISR_Timer()
 {
+
+    Serial.println(velocidad_abs);
+    
     if (flag_alarma)
   {
     if (contador_alarma % ALARM_PERIOD == 0)
@@ -112,20 +116,20 @@ void ISR_Timer()
       contador_alarma++;
   }
 
-  if (flag_back && flag_objeto_detectado[2] && (back_exception == 0))
-  {
-    Serial.println("BACK EXCEPTION");
-    analogWrite(PWM1, 127);
-    flag_cntrl_vel = 0;
-    back_exception = 1;
-    flag_objeto_detectado[2] = 0;
-  }
-  else if (flag_no_objeto_detectado[2] && (back_exception == 1))
-  {
-    Serial.println("BACK EXCEPTION RETURN");
-    mover(distancia_max-distancia_temp[0],0.3,0);
-    back_exception = 0;
-  }
+//  if (flag_back && flag_objeto_detectado[2] && (back_exception == 0))
+//  {
+//    Serial.println("BACK EXCEPTION");
+//    analogWrite(PWM1, 127);
+//    flag_cntrl_vel = 0;
+//    back_exception = 1;
+//    flag_objeto_detectado[2] = 0;
+//  }
+//  else if (flag_no_objeto_detectado[2] && (back_exception == 1))
+//  {
+//    Serial.println("BACK EXCEPTION RETURN");
+//    mover(distancia_max-distancia_temp[0],0.3,0);
+//    back_exception = 0;
+//  }
 
   
   // Se evalua si hay un objeto cercano adelante

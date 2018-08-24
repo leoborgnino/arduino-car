@@ -127,13 +127,14 @@ double velocidad_temp         = 0.0;
 double velocidad_abs          = 0.0;
 double distancia_abs          = 0.0;
 double distancia_abs_d        = 0.0;
-double kd                     = 1.0;
-double ki                     = 0.20;
-double kp                     = 10.0;
+double kd                     = 0.000232;
+double ki                     = 1.09;
+double kp                     = 0.226;
+float ultr_distance_temp = 0.0;
 
 // Variables Ultrasonido
 
-double ultr_distance[N_ULTR_SENSOR];
+float ultr_distance[N_ULTR_SENSOR];
 double distancia_objeto[N_ULTR_SENSOR];
 long   ultr_start_time[N_ULTR_SENSOR];
 int    contador_obstaculo[N_ULTR_SENSOR][MUESTRAS_DETECCION];
@@ -220,12 +221,20 @@ void loop()
       dtostrf(datos[i],6,2,buff[i]);
     dtostrf(valor_giro_total,6,2,buff[3]);
     dtostrf((velocidad_abs)  ,6,2,buff[4]);
-    dtostrf((ultr_distance[0])  ,6,2,buff[5]);
-    dtostrf((ultr_distance[1])  ,6,2,buff[6]);
+    if (ultr_distance[0] > 300.0 || ultr_distance[0] < 0)
+      ultr_distance_temp = 3.0;
+    else
+      ultr_distance_temp = ultr_distance[0]/100.0;
+    dtostrf( ultr_distance_temp  ,6,2,buff[5]);
+    if (ultr_distance[1] > 300.0 || ultr_distance[1] < 0)
+      ultr_distance_temp = 3.0;
+    else
+      ultr_distance_temp = ultr_distance[1]/100.0;
+    dtostrf(ultr_distance_temp  ,6,2,buff[6]);
     //dtostrf((ultr_distance[2])  ,6,2,buff[10]);
 
     //sprintf(mystring, "%s %s %s %s %s %s %s %s %s %s %s !", buff[0], buff[1], buff[2], buff[3], buff[4], buff[5],buff[6],buff[7],buff[8],buff[9],buff[10]);
-    sprintf(mystring, "%s %s %s %s %s %s %s!", buff[0], buff[1], buff[2],buff[3],buff[4],buff[5],buff[6]);
+    sprintf(mystring, "%s %s %s %s %s %s %s !", buff[0], buff[1], buff[2],buff[3],buff[4],buff[5],buff[6]);
     send_uart(mystring, respuestaid_mpu);
     flag_accion = 0;
   }
