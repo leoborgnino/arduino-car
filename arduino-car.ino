@@ -52,6 +52,7 @@ const int   LIMITE_MUESTRAS    =    2;
 const int   PIN_ALARM          =   A8;
 const int   ALARM_PERIOD       =   15;
 const int   N_BEEPS            =    1;
+const int   FIFO_DEPTH         =    2;
 const float SATURACION_INTEGRADOR = 30.0;
 
 
@@ -60,26 +61,30 @@ const float SATURACION_INTEGRADOR = 30.0;
 /********************************/
 
 // Banderas
-int flag_uart                = 0;
-int flag_accion              = 0;
-int flag_centrar_vehiculo    = 0;
-int flag_cntrl_vel           = 0;
-int flag_back                = 0;
-int flag_timer               = 0;
-int flag_girar_volante       = 0;
-int flag_mover               = 0;
-int flag_rotacion            = 0;
-int flag_linea_recta         = 0;
-int flag_giro_leve           = 0;
-int flag_reversa_corta       = 0;
-int flag_ultrasonido         = 0;
-int flag_ultr_request        = 0;
-int ultr_flag_start          = 0;
+int flag_uart                 = 0;
+int flag_accion               = 0;
+int flag_centrar_vehiculo     = 0;
+int flag_cntrl_vel            = 0;
+int flag_back                 = 0;
+int flag_timer                = 0;
+int flag_girar_volante        = 0;
+int flag_mover                = 0;
+int flag_rotacion             = 0;
+int flag_linea_recta          = 0;
+int flag_giro_leve            = 0;
+int flag_reversa_corta        = 0;
+int flag_ultrasonido          = 0;
+int flag_ultr_request         = 0;
+int ultr_flag_start           = 0;
+int flag_start                = 0;
+int flag_start_d              = 0;
+int flag_siguiente_movimiento = 0;
 
 // Variables de Comunicacion Serie
 unsigned char  SerRx;
 int   data_len_rx         = 0;
 unsigned char  data_rec[10];
+unsigned char  fifo_data_rec[7][2];
 char  mystring[100];
 char  buff[11][7];
 float datos[7];
@@ -98,17 +103,20 @@ float grados_por_rotar  = 0;
 float centrar_vehiculo  = 0;
 
 //Variables Movimiento
-int  enderezar_volante    = 0;
-int  esperar_volante      = 0;
-int  completar_movimiento = 0;
-int  posicion_volante     = 0;
-int  sentido_giro         = 0;
-int  contador_movimiento  = 0;
-int  sentido_temp         = 0;
-int  grados_volante_max   = 0;
-int  objeto_detectado     = 0;
+int          enderezar_volante    = 0;
+int          esperar_volante      = 0;
+int          completar_movimiento = 0;
+int          posicion_volante     = 0;
+int          sentido_giro         = 0;
+int          contador_movimiento  = 0;
+int          sentido_temp         = 0;
+int          grados_volante_max   = 0;
+int          objeto_detectado     = 0;
 unsigned int distancia_max        = 0;
-unsigned int distancia_shifted = 0;
+unsigned int distancia_shifted    = 0;
+int          punt_lectura = 0;
+int          punt_escritura = 0;
+int          flag_distancia_objeto = 0;
 
 float  distancia_temp[2]      = {0.0, 0.0};
 float  velocidad_ref          = 3.0; // Velocidad crucero en m/s
@@ -248,18 +256,60 @@ void loop()
 
   if ((data_rec[1] == 'k') && (flag_accion))
   {
-    respuestaid_plan = data_rec[0];
-    
-    if(data_rec[7])
-      grados_objetivo = data_rec[6] * (-1.0);
-    else
-      grados_objetivo = data_rec[6] * 1.0;
+    if(flag_start == 0)
+    {
+     fifo_data_rec[0][punt_escritura] = data_rec[0];
+     fifo_data_rec[1][punt_escritura] = data_rec[7];
+     fifo_data_rec[2][punt_escritura] = data_rec[6];
+     fifo_data_rec[3][punt_escritura] = data_rec[2];
+     fifo_data_rec[4][punt_escritura] = data_rec[3];
+     fifo_data_rec[5][punt_escritura] = data_rec[4];
+     fifo_data_rec[6][punt_escritura] = data_rec[5];
 
-    distancia_shifted = data_rec[2] + data_rec[3]*256;
-    girar();
-    mover(distancia_shifted,data_rec[4]/100.0, data_rec[5]);
+     punt_escritura = (punt_escritura + 1) % FIFO_DEPTH;
+
+     flag_start = 1;
+     send_uart((char*)"0 !", respuestaid_plan);
+    }
+    else
+    {
+       fifo_data_rec[0][punt_escritura] = data_rec[0];
+       fifo_data_rec[1][punt_escritura] = data_rec[7];
+       fifo_data_rec[2][punt_escritura] = data_rec[6];
+       fifo_data_rec[3][punt_escritura] = data_rec[2];
+       fifo_data_rec[4][punt_escritura] = data_rec[3];
+       fifo_data_rec[5][punt_escritura] = data_rec[4];
+       fifo_data_rec[6][punt_escritura] = data_rec[5];
+
+       punt_escritura = (punt_escritura + 1) % FIFO_DEPTH;
+
+      if(flag_start_d == 0)
+      {
+        flag_siguiente_movimiento = 1;
+        flag_start_d = 1;
+      }
+    }
     flag_accion = 0;
   }
+
+  if((flag_siguiente_movimiento == 1))
+  {   
+    respuestaid_plan = fifo_data_rec[0][punt_lectura];
+    
+    if(fifo_data_rec[1][punt_lectura])
+      grados_objetivo = fifo_data_rec[2][punt_lectura] * (-1.0);
+    else
+      grados_objetivo = fifo_data_rec[2][punt_lectura] * 1.0;
+
+    distancia_shifted = fifo_data_rec[3][punt_lectura] + fifo_data_rec[4][punt_lectura]*256;
+    girar();
+    mover(distancia_shifted,fifo_data_rec[5][punt_lectura]/100.0, fifo_data_rec[6][punt_lectura]);
+    flag_siguiente_movimiento = 0;
+
+    punt_lectura = (punt_lectura + 1) % FIFO_DEPTH;
+   }
+
+
 
   if(objeto_detectado == 3)
   {
@@ -272,6 +322,7 @@ void loop()
 
     sprintf(mystring, "1 %s %s %s !", buff[0], buff[1], buff[2]);
     send_uart(mystring, respuestaid_plan);
+    flag_distancia_objeto = 0;
   }
   
   if(completar_movimiento == 3)

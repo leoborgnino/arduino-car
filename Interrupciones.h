@@ -34,6 +34,8 @@ extern int         flag_reversa_corta;
 extern int         flag_ultrasonido;
 extern int         flag_ultr_request;
 extern int         ultr_flag_start;
+extern int         flag_siguiente_movimiento;
+extern int         flag_distancia_objeto;
 
 extern int         contador_pid;
 extern int         respuestaid_plan;
@@ -142,8 +144,12 @@ void ISR_Timer()
     flag_objeto_detectado[0] = 0;
     flag_objeto_detectado[1] = 0;
     objeto_detectado = MODO_ULTRASONIDO;
-    distancia_objeto[0] = distancia_objeto[0] + distancia_temp[0];
-    distancia_objeto[1] = distancia_objeto[1] + distancia_temp[0];
+    if(flag_distancia_objeto == 1)
+    {
+      distancia_objeto[0] = distancia_objeto[0] + 40;//distancia_temp[0];
+      distancia_objeto[1] = distancia_objeto[1] + 40;//distancia_temp[0];
+      flag_distancia_objeto = 2;
+    }
   } 
 
   // Condiciones de corte volante
@@ -161,7 +167,9 @@ void ISR_Timer()
       {
         enderezar_volante = 0;
         esperar_volante = 0;
+        flag_siguiente_movimiento = 1;
         send_uart((char*)"0 !", respuestaid_plan);
+        flag_siguiente_movimiento = 1;
       }
   }
 

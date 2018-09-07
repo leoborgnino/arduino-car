@@ -26,6 +26,7 @@ extern int         flag_rotacion;
 extern int         flag_linea_recta;
 extern int         flag_giro_leve;
 extern int         flag_back;
+extern int         flag_distancia_objeto;
 
 extern int          posicion_volante;
 extern int          sentido_giro;
@@ -229,7 +230,11 @@ void filtrar_datos_ultrasonido(int indice)
       contador_obstaculo[indice][i] = 0; 
     flag_no_objeto_detectado[indice] = 0;
     flag_objeto_detectado[indice] = 1;
-    distancia_objeto[indice] = ultr_distance[indice];
+    if(flag_distancia_objeto == 0)
+    {
+      distancia_objeto[indice] = ultr_distance[indice];
+      flag_distancia_objeto = 1;
+    }
   }
 
   if(contador_no_deteccion[indice] >= LIMITE_MUESTRAS)
